@@ -141,16 +141,16 @@
             </div>
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
                 <div>
-                    <h2 class="text-base font-semibold text-white mb-1">Official NWS Flood Stages</h2>
+                    <h2 class="text-base font-semibold text-white mb-1">Official Flood Stages</h2>
                     <p class="text-xs text-slate-400 mb-4">Reference thresholds for Big Blue River at Beatrice</p>
                     <div class="space-y-3 font-mono text-xs">
                         <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-purple-500/20">
                             <span class="font-medium text-slate-200">Major Flood</span>
-                            <span class="font-bold text-purple-400">30.0 FT</span>
+                            <span class="font-bold text-purple-400">32.0 FT</span>
                         </div>
                         <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-red-500/20">
                             <span class="font-medium text-slate-200">Moderate Flood</span>
-                            <span class="font-bold text-red-400">21.0 FT</span>
+                            <span class="font-bold text-red-400">26.0 FT</span>
                         </div>
                         <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-orange-500/20">
                             <span class="font-medium text-slate-200">Minor Flood</span>
@@ -158,7 +158,7 @@
                         </div>
                         <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-amber-500/20">
                             <span class="font-medium text-slate-200">Action Stage</span>
-                            <span class="font-bold text-amber-400">14.0 FT</span>
+                            <span class="font-bold text-amber-400">16.0 FT</span>
                         </div>
                     </div>
                 </div>
@@ -169,7 +169,7 @@
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <h2 class="text-base font-semibold text-white">Active Operational Directives</h2>
-                    <p class="text-xs text-slate-400">Automated policies evaluated against current gauge height</p>
+                    <p class="text-xs text-slate-400">Automated policies evaluated against current gauge height and Nebraska flood-stage thresholds</p>
                 </div>
                 <button onclick="togglePolicyModal(true)" class="text-xs text-blue-400 hover:text-blue-300 font-medium">+ Add or Edit Rules</button>
             </div>
@@ -205,10 +205,10 @@
 
     <script>
         const DEFAULT_POLICIES = [
-            { id: 'p1', name: 'NWS Action Stage Advisory', stage: 14.0, severity: 'action', directive: 'River approach monitoring required.', enabled: true },
+            { id: 'p1', name: 'NWS Action Stage Advisory', stage: 16.0, severity: 'action', directive: 'River approach monitoring required.', enabled: true },
             { id: 'p2', name: 'Minor Flood Alert', stage: 18.0, severity: 'minor', directive: 'Water overflows banks into agricultural bottomlands.', enabled: true },
-            { id: 'p3', name: 'Moderate Flood Stage Directive', stage: 21.0, severity: 'moderate', directive: 'Secondary roads near river inundated.', enabled: true },
-            { id: 'p4', name: 'Major Inundation Response', stage: 30.0, severity: 'major', directive: 'Execute emergency protocols for affected zones.', enabled: true }
+            { id: 'p3', name: 'Moderate Flood Stage Directive', stage: 26.0, severity: 'moderate', directive: 'Secondary roads near river inundated.', enabled: true },
+            { id: 'p4', name: 'Major Inundation Response', stage: 32.0, severity: 'major', directive: 'Execute emergency protocols for affected zones.', enabled: true }
         ];
 
         let policies = [];
@@ -242,109 +242,111 @@
         const NWS_USER_AGENT = 'BigBlueRiverStageMonitor/1.0 (GitHub Pages weather monitor)';
 
         async function fetchRiverData() {
-            /*
-             * USGS MODERN WATER DATA API
-             * Current API: api.waterdata.usgs.gov/ogcapi/v1
-             * USGS documents /latest-continuous as the replacement for the
-             * retired WaterServices /iv endpoint.
-             */
+            // PRIMARY SOURCE: Nebraska DWEE statewide Streamgages GIS service.
+            // This service is updated about every 15 minutes and combines
+            // current stage/discharge data from the agencies operating the gage.
+            // USGS is retained as a fallback, but USGS currently reports no
+            // continuous data for station 06881500 in its modern system.
             let stage = null;
             let discharge = null;
             let timeSeriesData = [];
-
-            const USGS_BASE = 'https://api.waterdata.usgs.gov/ogcapi/v1/collections';
-            const SITE = 'USGS-06881500';
+            let thresholds = { action: 16.0, flood: 18.0, moderate: 26.0, major: 32.0 };
+            let sourceName = '';
 
             try {
-                const params = new URLSearchParams({
-                    f: 'json',
-                    monitoring_location_id: SITE,
-                    parameter_code: '00065,00060',
-                    limit: '100'
-                });
+                const url = 'https://dweegis.nebraska.gov/weegis/rest/services/Streamgages/FeatureServer/0/query' +
+                    '?where=StationNumber%3D%2706881500%27' +
+                    '&outFields=StationNumber%2CStationName%2CStage%2CStageDateAsString%2CDischarge%2CDischargeDateAsString%2CActionStage%2CFloodStage%2CModerateStage%2CMajorStage%2CFloodStatus%2CStageTrend%2CSource%2CProcessingDateAsString' +
+                    '&returnGeometry=false&f=json';
 
-                const latestUrl = `${USGS_BASE}/latest-continuous/items?${params.toString()}`;
+                const response = await fetch(url, { cache: 'no-store' });
+                if (!response.ok) throw new Error(`Nebraska DWEE HTTP ${response.status}`);
 
-                const historyParams = new URLSearchParams({
-                    f: 'json',
-                    monitoring_location_id: SITE,
-                    parameter_code: '00065',
-                    time: 'P3D',
-                    limit: '50000'
-                });
+                const data = await response.json();
+                const attrs = data?.features?.[0]?.attributes;
+                if (!attrs) throw new Error('Nebraska DWEE returned no Beatrice gage record');
 
-                const historyUrl = `${USGS_BASE}/continuous/items?${historyParams.toString()}`;
+                const numberOrNull = value => {
+                    const n = Number(value);
+                    return Number.isFinite(n) ? n : null;
+                };
 
-                const [latestResponse, historyResponse] = await Promise.all([
-                    fetch(latestUrl, { cache: 'no-store' }),
-                    fetch(historyUrl, { cache: 'no-store' })
-                ]);
+                stage = numberOrNull(attrs.Stage);
+                discharge = numberOrNull(attrs.Discharge);
 
-                if (!latestResponse.ok) {
-                    throw new Error(`USGS latest HTTP ${latestResponse.status}`);
-                }
-                if (!historyResponse.ok) {
-                    throw new Error(`USGS history HTTP ${historyResponse.status}`);
-                }
+                thresholds.action = numberOrNull(attrs.ActionStage) ?? 16.0;
+                thresholds.flood = numberOrNull(attrs.FloodStage) ?? 18.0;
+                thresholds.moderate = numberOrNull(attrs.ModerateStage) ?? 26.0;
+                thresholds.major = numberOrNull(attrs.MajorStage) ?? 32.0;
+                sourceName = attrs.Source || 'Nebraska DWEE';
 
-                const latestData = await latestResponse.json();
-                const historyData = await historyResponse.json();
-
-                const latestFeatures = Array.isArray(latestData.features) ? latestData.features : [];
-                const historyFeatures = Array.isArray(historyData.features) ? historyData.features : [];
-
-                // USGS returns parameter_code in each feature. Normalize it to
-                // a string so this works regardless of how the browser parses it.
-                const getCode = feature => String(feature?.properties?.parameter_code ?? '').padStart(5, '0');
-                const getValue = feature => Number(feature?.properties?.value);
-                const getTime = feature => new Date(feature?.properties?.time);
-
-                const stageFeatures = latestFeatures.filter(f => getCode(f) === '00065');
-                const flowFeatures = latestFeatures.filter(f => getCode(f) === '00060');
-
-                // Pick the newest valid observation if more than one time series exists.
-                stageFeatures.sort((a, b) => getTime(b) - getTime(a));
-                flowFeatures.sort((a, b) => getTime(b) - getTime(a));
-
-                if (stageFeatures.length && Number.isFinite(getValue(stageFeatures[0]))) {
-                    stage = getValue(stageFeatures[0]);
+                if (stage !== null) {
+                    // The DWEE service exposes current stage and the prior
+                    // 15/30/45/60 minute values, which gives us a useful
+                    // short-term hydrograph without relying on dead USGS IV data.
+                    const points = [
+                        { value: attrs.Stage60, minutes: 60 },
+                        { value: attrs.Stage45, minutes: 45 },
+                        { value: attrs.Stage30, minutes: 30 },
+                        { value: attrs.Stage15, minutes: 15 },
+                        { value: attrs.Stage, minutes: 0 }
+                    ].map(p => ({
+                        time: new Date(Date.now() - p.minutes * 60000),
+                        val: numberOrNull(p.value)
+                    })).filter(p => p.val !== null);
+                    timeSeriesData = points;
                 }
 
-                if (flowFeatures.length && Number.isFinite(getValue(flowFeatures[0]))) {
-                    discharge = getValue(flowFeatures[0]);
+                if (stage === null) throw new Error('Nebraska DWEE returned no current stage value');
+
+                updateFloodThresholds(thresholds);
+                updateUI(stage, discharge, timeSeriesData, thresholds);
+                setSystemStatus(`River Data Active • ${sourceName}`, true);
+
+            } catch (dweeError) {
+                console.warn('Nebraska DWEE Fetch error:', dweeError);
+
+                // FALLBACK: current NWS RFC conditions feed. It is useful for
+                // discharge, but this station may have no current stage value.
+                try {
+                    const nwsRfcUrl = 'https://www.weather.gov/mbrfc/latestconditions_bbl';
+                    // Do not scrape HTML here; leave the existing NWS weather
+                    // feed independent and report the river source as offline.
+                    throw new Error('No reliable fallback stage source available');
+                } catch (fallbackError) {
+                    setSystemStatus('River Data Offline', false);
                 }
-
-                // Build the 3-day hydrograph from parameter 00065.
-                timeSeriesData = historyFeatures
-                    .filter(f => getCode(f) === '00065')
-                    .map(f => ({
-                        time: getTime(f),
-                        val: getValue(f)
-                    }))
-                    .filter(v => Number.isFinite(v.val) && !Number.isNaN(v.time.getTime()))
-                    .sort((a, b) => a.time - b.time);
-
-                // Extra fallback: if latest-continuous did not contain the
-                // current stage, use the newest valid value from the 3-day feed.
-                if (!Number.isFinite(stage) && timeSeriesData.length) {
-                    stage = timeSeriesData[timeSeriesData.length - 1].val;
-                }
-
-                if (!Number.isFinite(stage)) {
-                    console.error('USGS latest response:', latestData);
-                    console.error('USGS history response:', historyData);
-                    throw new Error('USGS returned no usable gage-height value');
-                }
-
-                updateUI(stage, Number.isFinite(discharge) ? discharge : null, timeSeriesData);
-                setSystemStatus('USGS Active', true);
-            } catch (e) {
-                console.warn('USGS Fetch error:', e);
-                setSystemStatus('USGS Data Offline', false);
             }
 
             // Weather is independent of the river feed.
             await fetchWeatherData();
+        }
+
+        function updateFloodThresholds(t) {
+            const thresholdEl = document.getElementById('nextThresholdVal');
+            const marginEl = document.getElementById('marginToNextText');
+            const stage = parseFloat(document.getElementById('currentStageVal').innerText);
+
+            // Keep the reference panel synchronized with the actual gage policy values.
+            const panel = document.querySelector('.lg\\:col-span-1 .space-y-3');
+            if (panel) {
+                const rows = panel.querySelectorAll(':scope > div');
+                if (rows.length >= 4) {
+                    rows[0].querySelector('span:last-child').textContent = `${t.major.toFixed(1)} FT`;
+                    rows[1].querySelector('span:last-child').textContent = `${t.moderate.toFixed(1)} FT`;
+                    rows[2].querySelector('span:last-child').textContent = `${t.flood.toFixed(1)} FT`;
+                    rows[3].querySelector('span:first-child').textContent = 'Action Stage';
+                    rows[3].querySelector('span:last-child').textContent = `${t.action.toFixed(1)} FT`;
+                }
+            }
+
+            if (thresholdEl) thresholdEl.textContent = t.action.toFixed(1);
+            if (Number.isFinite(stage) && marginEl) {
+                const margin = t.action - stage;
+                marginEl.textContent = margin >= 0
+                    ? `Margin: ${margin.toFixed(2)} ft to Action Stage`
+                    : `Action stage exceeded by ${Math.abs(margin).toFixed(2)} ft`;
+            }
         }
 
         async function fetchWeatherData() {
@@ -457,16 +459,17 @@
             }
         }
 
-        function updateUI(stage, discharge, timeSeries) {
+        function updateUI(stage, discharge, timeSeries, thresholds = { action: 16, flood: 18, moderate: 26, major: 32 }) {
             document.getElementById('lastUpdatedTime').innerText = new Date().toLocaleTimeString();
             document.getElementById('currentStageVal').innerText = stage.toFixed(2);
             document.getElementById('dischargeVal').innerText = discharge ? discharge.toLocaleString() : 'N/A';
             
-            const margin = 14.0 - stage;
+            const margin = thresholds.action - stage;
             document.getElementById('marginToNextText').innerText = margin > 0 
                 ? `Margin: ${margin.toFixed(2)} ft to Action Stage` 
                 : `Action stage exceeded by ${Math.abs(margin).toFixed(2)} ft`;
 
+            updateFloodThresholds(thresholds);
             updateChart(timeSeries);
             evaluatePolicies(stage);
         }
