@@ -242,67 +242,91 @@
         const NWS_USER_AGENT = 'BigBlueRiverStageMonitor/1.0 (GitHub Pages weather monitor)';
 
         async function fetchRiverData() {
-            let stage = null, discharge = null, timeSeriesData = [];
+            /*
+             * USGS MODERN WATER DATA API
+             * The old waterservices.usgs.gov/nwis/iv endpoint is being
+             * retired and is already returning intermittent 503/403 errors.
+             * The modern API uses api.waterdata.usgs.gov.
+             */
+            let stage = null;
+            let discharge = null;
+            let timeSeriesData = [];
+
+            const USGS_BASE = 'https://api.waterdata.usgs.gov/ogcapi/v1/collections';
+            const SITE = 'USGS-06881500';
 
             try {
-                const res = await fetch('https://waterservices.usgs.gov/nwis/iv/?format=json&sites=06881500&parameterCd=00065,00060&period=P3D', {
-                    cache: 'no-store'
-                });
+                const latestBase = `${USGS_BASE}/latest-continuous/items`;
+                const historyBase = `${USGS_BASE}/continuous/items`;
 
-                if (!res.ok) throw new Error(`USGS HTTP ${res.status}`);
+                const latestStageUrl = `${latestBase}?f=json&monitoring_location_id=${SITE}&parameter_code=00065&limit=10`;
+                const latestFlowUrl = `${latestBase}?f=json&monitoring_location_id=${SITE}&parameter_code=00060&limit=10`;
+                const historyUrl = `${historyBase}?f=json&monitoring_location_id=${SITE}&parameter_code=00065&time=P3D&limit=50000`;
 
-                const data = await res.json();
+                const [stageResponse, flowResponse, historyResponse] = await Promise.all([
+                    fetch(latestStageUrl, { cache: 'no-store' }),
+                    fetch(latestFlowUrl, { cache: 'no-store' }),
+                    fetch(historyUrl, { cache: 'no-store' })
+                ]);
 
-                if (data.value && Array.isArray(data.value.timeSeries)) {
-                    data.value.timeSeries.forEach(ts => {
-                        const code = ts.variable?.variableCode?.[0]?.value;
-                        const vals = ts.values?.[0]?.value || [];
+                if (!stageResponse.ok) throw new Error(`USGS stage HTTP ${stageResponse.status}`);
+                if (!flowResponse.ok) throw new Error(`USGS flow HTTP ${flowResponse.status}`);
+                if (!historyResponse.ok) throw new Error(`USGS history HTTP ${historyResponse.status}`);
 
-                        if (code === '00065' && vals.length) {
-                            const valid = vals.filter(v => v.value !== '-999999');
-                            if (valid.length) {
-                                stage = parseFloat(valid[valid.length - 1].value);
-                                timeSeriesData = valid
-                                    .map(v => ({ time: new Date(v.dateTime), val: parseFloat(v.value) }))
-                                    .filter(v => Number.isFinite(v.val));
-                            }
-                        } else if (code === '00060' && vals.length) {
-                            const valid = vals.filter(v => v.value !== '-999999');
-                            if (valid.length) {
-                                discharge = parseFloat(valid[valid.length - 1].value);
-                            }
-                        }
-                    });
+                const stageData = await stageResponse.json();
+                const flowData = await flowResponse.json();
+                const historyData = await historyResponse.json();
+
+                const stageFeatures = stageData.features || [];
+                const flowFeatures = flowData.features || [];
+                const historyFeatures = historyData.features || [];
+
+                const latestStage = stageFeatures.find(f => f.properties?.parameter_code === '00065');
+                const latestFlow = flowFeatures.find(f => f.properties?.parameter_code === '00060');
+
+                if (latestStage?.properties?.value != null) {
+                    stage = Number(latestStage.properties.value);
                 }
+
+                if (latestFlow?.properties?.value != null) {
+                    discharge = Number(latestFlow.properties.value);
+                }
+
+                timeSeriesData = historyFeatures
+                    .map(f => ({
+                        time: new Date(f.properties?.time),
+                        val: Number(f.properties?.value)
+                    }))
+                    .filter(v => Number.isFinite(v.val) && !Number.isNaN(v.time.getTime()))
+                    .sort((a, b) => a.time - b.time);
+
+                if (!Number.isFinite(stage)) {
+                    throw new Error('USGS returned no current gage-height value');
+                }
+
+                updateUI(stage, Number.isFinite(discharge) ? discharge : null, timeSeriesData);
+                setSystemStatus('USGS Active', true);
             } catch (e) {
                 console.warn('USGS Fetch error:', e);
+                setSystemStatus('USGS Data Offline', false);
             }
 
-            if (stage !== null) {
-                updateUI(stage, discharge, timeSeriesData);
-            } else {
-                setSystemStatus('USGS data unavailable', false);
-            }
-
+            // Weather is independent of the river feed, so a USGS failure
+            // does not prevent NWS weather from updating.
             await fetchWeatherData();
         }
 
         async function fetchWeatherData() {
             /*
-             * NWS API is free and requires no API key.
-             * GitHub Pages can call api.weather.gov directly from the browser.
-             * We first request the forecast grid for Beatrice, then request
-             * the hourly forecast from the returned URL.
+             * NWS API for Beatrice, Nebraska.
+             * Do NOT send a browser User-Agent header: browsers prohibit
+             * JavaScript from setting that header. NWS supports browser
+             * requests to api.weather.gov.
              */
             try {
-                const headers = {
-                    'Accept': 'application/geo+json',
-                    'User-Agent': NWS_USER_AGENT
-                };
-
                 const pointsUrl = `https://api.weather.gov/points/${WEATHER_LAT},${WEATHER_LON}`;
                 const pointsResponse = await fetch(pointsUrl, {
-                    headers,
+                    headers: { 'Accept': 'application/geo+json' },
                     cache: 'no-store'
                 });
 
@@ -318,7 +342,7 @@
                 }
 
                 const forecastResponse = await fetch(forecastHourlyUrl, {
-                    headers,
+                    headers: { 'Accept': 'application/geo+json' },
                     cache: 'no-store'
                 });
 
@@ -334,11 +358,9 @@
                 }
 
                 updateWeatherUI(periods[0], periods.slice(0, 12));
-                setSystemStatus('USGS + NWS Active', true);
             } catch (e) {
                 console.warn('NWS Weather Fetch error:', e);
                 setWeatherUnavailable();
-                setSystemStatus('River Active / Weather Offline', false);
             }
         }
 
