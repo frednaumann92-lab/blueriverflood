@@ -244,9 +244,9 @@
         async function fetchRiverData() {
             /*
              * USGS MODERN WATER DATA API
-             * The old waterservices.usgs.gov/nwis/iv endpoint is being
-             * retired and is already returning intermittent 503/403 errors.
-             * The modern API uses api.waterdata.usgs.gov.
+             * Current API: api.waterdata.usgs.gov/ogcapi/v1
+             * USGS documents /latest-continuous as the replacement for the
+             * retired WaterServices /iv endpoint.
              */
             let stage = null;
             let discharge = null;
@@ -256,52 +256,84 @@
             const SITE = 'USGS-06881500';
 
             try {
-                const latestBase = `${USGS_BASE}/latest-continuous/items`;
-                const historyBase = `${USGS_BASE}/continuous/items`;
+                const params = new URLSearchParams({
+                    f: 'json',
+                    monitoring_location_id: SITE,
+                    parameter_code: '00065,00060',
+                    limit: '100'
+                });
 
-                const latestStageUrl = `${latestBase}?f=json&monitoring_location_id=${SITE}&parameter_code=00065&limit=10`;
-                const latestFlowUrl = `${latestBase}?f=json&monitoring_location_id=${SITE}&parameter_code=00060&limit=10`;
-                const historyUrl = `${historyBase}?f=json&monitoring_location_id=${SITE}&parameter_code=00065&time=P3D&limit=50000`;
+                const latestUrl = `${USGS_BASE}/latest-continuous/items?${params.toString()}`;
 
-                const [stageResponse, flowResponse, historyResponse] = await Promise.all([
-                    fetch(latestStageUrl, { cache: 'no-store' }),
-                    fetch(latestFlowUrl, { cache: 'no-store' }),
+                const historyParams = new URLSearchParams({
+                    f: 'json',
+                    monitoring_location_id: SITE,
+                    parameter_code: '00065',
+                    time: 'P3D',
+                    limit: '50000'
+                });
+
+                const historyUrl = `${USGS_BASE}/continuous/items?${historyParams.toString()}`;
+
+                const [latestResponse, historyResponse] = await Promise.all([
+                    fetch(latestUrl, { cache: 'no-store' }),
                     fetch(historyUrl, { cache: 'no-store' })
                 ]);
 
-                if (!stageResponse.ok) throw new Error(`USGS stage HTTP ${stageResponse.status}`);
-                if (!flowResponse.ok) throw new Error(`USGS flow HTTP ${flowResponse.status}`);
-                if (!historyResponse.ok) throw new Error(`USGS history HTTP ${historyResponse.status}`);
+                if (!latestResponse.ok) {
+                    throw new Error(`USGS latest HTTP ${latestResponse.status}`);
+                }
+                if (!historyResponse.ok) {
+                    throw new Error(`USGS history HTTP ${historyResponse.status}`);
+                }
 
-                const stageData = await stageResponse.json();
-                const flowData = await flowResponse.json();
+                const latestData = await latestResponse.json();
                 const historyData = await historyResponse.json();
 
-                const stageFeatures = stageData.features || [];
-                const flowFeatures = flowData.features || [];
-                const historyFeatures = historyData.features || [];
+                const latestFeatures = Array.isArray(latestData.features) ? latestData.features : [];
+                const historyFeatures = Array.isArray(historyData.features) ? historyData.features : [];
 
-                const latestStage = stageFeatures.find(f => f.properties?.parameter_code === '00065');
-                const latestFlow = flowFeatures.find(f => f.properties?.parameter_code === '00060');
+                // USGS returns parameter_code in each feature. Normalize it to
+                // a string so this works regardless of how the browser parses it.
+                const getCode = feature => String(feature?.properties?.parameter_code ?? '').padStart(5, '0');
+                const getValue = feature => Number(feature?.properties?.value);
+                const getTime = feature => new Date(feature?.properties?.time);
 
-                if (latestStage?.properties?.value != null) {
-                    stage = Number(latestStage.properties.value);
+                const stageFeatures = latestFeatures.filter(f => getCode(f) === '00065');
+                const flowFeatures = latestFeatures.filter(f => getCode(f) === '00060');
+
+                // Pick the newest valid observation if more than one time series exists.
+                stageFeatures.sort((a, b) => getTime(b) - getTime(a));
+                flowFeatures.sort((a, b) => getTime(b) - getTime(a));
+
+                if (stageFeatures.length && Number.isFinite(getValue(stageFeatures[0]))) {
+                    stage = getValue(stageFeatures[0]);
                 }
 
-                if (latestFlow?.properties?.value != null) {
-                    discharge = Number(latestFlow.properties.value);
+                if (flowFeatures.length && Number.isFinite(getValue(flowFeatures[0]))) {
+                    discharge = getValue(flowFeatures[0]);
                 }
 
+                // Build the 3-day hydrograph from parameter 00065.
                 timeSeriesData = historyFeatures
+                    .filter(f => getCode(f) === '00065')
                     .map(f => ({
-                        time: new Date(f.properties?.time),
-                        val: Number(f.properties?.value)
+                        time: getTime(f),
+                        val: getValue(f)
                     }))
                     .filter(v => Number.isFinite(v.val) && !Number.isNaN(v.time.getTime()))
                     .sort((a, b) => a.time - b.time);
 
+                // Extra fallback: if latest-continuous did not contain the
+                // current stage, use the newest valid value from the 3-day feed.
+                if (!Number.isFinite(stage) && timeSeriesData.length) {
+                    stage = timeSeriesData[timeSeriesData.length - 1].val;
+                }
+
                 if (!Number.isFinite(stage)) {
-                    throw new Error('USGS returned no current gage-height value');
+                    console.error('USGS latest response:', latestData);
+                    console.error('USGS history response:', historyData);
+                    throw new Error('USGS returned no usable gage-height value');
                 }
 
                 updateUI(stage, Number.isFinite(discharge) ? discharge : null, timeSeriesData);
@@ -311,8 +343,7 @@
                 setSystemStatus('USGS Data Offline', false);
             }
 
-            // Weather is independent of the river feed, so a USGS failure
-            // does not prevent NWS weather from updating.
+            // Weather is independent of the river feed.
             await fetchWeatherData();
         }
 
