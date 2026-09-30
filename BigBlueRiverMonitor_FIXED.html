@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Big Blue River Stage Monitor — Beatrice, NE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 850: '#131e32', 950: '#070d19' },
+                        stage: { normal: '#10b981', action: '#f59e0b', minor: '#f97316', moderate: '#ef4444', major: '#8b5cf6' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(51, 65, 85, 0.8); border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col custom-scrollbar antialiased">
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-30 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30">
+                    <i class="fa-solid fa-water text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight tracking-wide text-white">Big Blue River Monitor</h1>
+                    <p class="text-xs text-slate-400 flex items-center gap-1.5">
+                        <span>Beatrice, Gage County, NE</span>
+                        <span>•</span>
+                        <span class="font-mono text-slate-300">NWS: BEAT1 | USGS: 06881500</span>
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div id="connectionStatus" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span id="statusText">System Active</span>
+                </div>
+                <div class="text-xs text-slate-400 font-mono hidden sm:block">
+                    Updated: <span id="lastUpdatedTime" class="text-slate-200">--:--:--</span>
+                </div>
+                <button onclick="fetchRiverData()" class="p-2 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition" title="Refresh Data">
+                    <i id="refreshIcon" class="fa-solid fa-rotate"></i>
+                </button>
+                <button onclick="togglePolicyModal(true)" class="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg border border-blue-400/30 transition shadow-lg shadow-blue-600/20">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>Configure Policies</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto w-full p-4 md:p-6 flex-1 space-y-6">
+        <div id="activeAlertBanner" class="hidden rounded-xl border p-4 transition-all"></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Gage Stage</span>
+                    <span id="stageBadge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Normal</span>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span id="currentStageVal" class="text-4xl font-extrabold font-mono text-white">--.--</span>
+                    <span class="text-slate-400 font-medium">FT</span>
+                </div>
+                <p id="stageTrendText" class="text-xs text-slate-400 mt-2 flex items-center gap-1 font-mono">
+                    <i class="fa-solid fa-minus text-slate-500"></i> Fetching telemetry...
+                </p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Discharge Flow</span>
+                    <i class="fa-solid fa-gauge-high text-slate-500"></i>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span id="dischargeVal" class="text-4xl font-extrabold font-mono text-white">---</span>
+                    <span class="text-slate-400 font-medium">CFS</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-2 font-mono">Cubic Feet Per Second</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Next Stage Threshold</span>
+                    <i class="fa-solid fa-shield-halved text-slate-500"></i>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span id="nextThresholdVal" class="text-3xl font-extrabold font-mono text-amber-400">14.00</span>
+                    <span class="text-slate-400 font-medium">FT</span>
+                </div>
+                <p id="marginToNextText" class="text-xs text-slate-400 mt-2 font-mono">Margin: -- ft to Action Stage</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Weather</span>
+                    <i id="weatherIcon" class="fa-solid fa-cloud-sun text-slate-500"></i>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span id="weatherTemp" class="text-4xl font-extrabold font-mono text-white">--</span>
+                    <span class="text-slate-400 font-medium">°F</span>
+                </div>
+                <p id="weatherCondition" class="text-xs text-slate-300 mt-2">Fetching NWS conditions...</p>
+                <p id="weatherDetails" class="text-xs text-slate-400 mt-1 font-mono">Wind: -- | Humidity: --</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Active Directives</span>
+                    <i class="fa-solid fa-triangle-exclamation text-slate-500"></i>
+                </div>
+                <div class="flex items-baseline gap-2">
+                    <span id="activePolicyCount" class="text-4xl font-extrabold font-mono text-white">0</span>
+                    <span class="text-slate-400 font-medium">Active</span>
+                </div>
+                <p id="policySummaryText" class="text-xs text-slate-400 mt-2">All parameters within normal operating limits.</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                    <div>
+                        <h2 class="text-base font-semibold text-white">Water Stage Hydrograph</h2>
+                        <p class="text-xs text-slate-400">Real-time river level timeline & flood stage overlays</p>
+                    </div>
+                </div>
+                <div class="relative flex-1 min-h-[300px] w-full">
+                    <canvas id="hydrographChart"></canvas>
+                </div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+                <div>
+                    <h2 class="text-base font-semibold text-white mb-1">Official NWS Flood Stages</h2>
+                    <p class="text-xs text-slate-400 mb-4">Reference thresholds for Big Blue River at Beatrice</p>
+                    <div class="space-y-3 font-mono text-xs">
+                        <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-purple-500/20">
+                            <span class="font-medium text-slate-200">Major Flood</span>
+                            <span class="font-bold text-purple-400">30.0 FT</span>
+                        </div>
+                        <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-red-500/20">
+                            <span class="font-medium text-slate-200">Moderate Flood</span>
+                            <span class="font-bold text-red-400">21.0 FT</span>
+                        </div>
+                        <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-orange-500/20">
+                            <span class="font-medium text-slate-200">Minor Flood</span>
+                            <span class="font-bold text-orange-400">18.0 FT</span>
+                        </div>
+                        <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-amber-500/20">
+                            <span class="font-medium text-slate-200">Action Stage</span>
+                            <span class="font-bold text-amber-400">14.0 FT</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="text-base font-semibold text-white">Active Operational Directives</h2>
+                    <p class="text-xs text-slate-400">Automated policies evaluated against current gauge height</p>
+                </div>
+                <button onclick="togglePolicyModal(true)" class="text-xs text-blue-400 hover:text-blue-300 font-medium">+ Add or Edit Rules</button>
+            </div>
+            <div id="triggeredPoliciesList" class="space-y-3"></div>
+        </div>
+    </main>
+
+    <div id="policyModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl p-5">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-semibold text-lg text-white">Custom Policy Engine</h3>
+                <button onclick="togglePolicyModal(false)" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="addPolicyForm" onsubmit="handleSavePolicy(event)" class="bg-slate-850 p-4 rounded-xl border border-slate-700/60 space-y-3 mb-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input type="text" id="policyName" required placeholder="Policy Title" class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
+                    <input type="number" step="0.1" id="policyStage" required placeholder="Trigger Height (FT)" class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <select id="policySeverity" class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
+                        <option value="action">Action Stage</option>
+                        <option value="minor">Minor Warning</option>
+                        <option value="moderate">Moderate Threat</option>
+                        <option value="major">Major Emergency</option>
+                    </select>
+                    <input type="text" id="policyDirective" required placeholder="Action Directive / Warning Text" class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
+                </div>
+                <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg">Save Rule</button>
+            </form>
+            <div id="modalPolicyList" class="space-y-2 overflow-y-auto max-h-48"></div>
+        </div>
+    </div>
+
+    <script>
+        const DEFAULT_POLICIES = [
+            { id: 'p1', name: 'NWS Action Stage Advisory', stage: 14.0, severity: 'action', directive: 'River approach monitoring required.', enabled: true },
+            { id: 'p2', name: 'Minor Flood Alert', stage: 18.0, severity: 'minor', directive: 'Water overflows banks into agricultural bottomlands.', enabled: true },
+            { id: 'p3', name: 'Moderate Flood Stage Directive', stage: 21.0, severity: 'moderate', directive: 'Secondary roads near river inundated.', enabled: true },
+            { id: 'p4', name: 'Major Inundation Response', stage: 30.0, severity: 'major', directive: 'Execute emergency protocols for affected zones.', enabled: true }
+        ];
+
+        let policies = [];
+        let chartInstance = null;
+
+        const SEVERITY_MAP = {
+            action: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400', badgeBg: 'bg-amber-500', name: 'Action Stage' },
+            minor: { bg: 'bg-orange-500/10', border: 'border-orange-500/30', text: 'text-orange-400', badgeBg: 'bg-orange-500', name: 'Minor Flood' },
+            moderate: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-400', badgeBg: 'bg-red-500', name: 'Moderate Flood' },
+            major: { bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-400', badgeBg: 'bg-purple-500', name: 'Major Flood' }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPolicies();
+            initChart();
+            fetchRiverData();
+            setInterval(fetchRiverData, 300000);
+        });
+
+        function loadPolicies() {
+            const stored = localStorage.getItem('beatrice_policies');
+            policies = stored ? JSON.parse(stored) : [...DEFAULT_POLICIES];
+        }
+
+        function savePolicies() {
+            localStorage.setItem('beatrice_policies', JSON.stringify(policies));
+        }
+
+        const WEATHER_LAT = 40.2681;
+        const WEATHER_LON = -96.7467;
+        const NWS_USER_AGENT = 'BigBlueRiverStageMonitor/1.0 (GitHub Pages weather monitor)';
+
+        async function fetchRiverData() {
+            let stage = null, discharge = null, timeSeriesData = [];
+
+            try {
+                const res = await fetch('https://waterservices.usgs.gov/nwis/iv/?format=json&sites=06881500&parameterCd=00065,00060&period=P3D', {
+                    cache: 'no-store'
+                });
+
+                if (!res.ok) throw new Error(`USGS HTTP ${res.status}`);
+
+                const data = await res.json();
+
+                if (data.value && Array.isArray(data.value.timeSeries)) {
+                    data.value.timeSeries.forEach(ts => {
+                        const code = ts.variable?.variableCode?.[0]?.value;
+                        const vals = ts.values?.[0]?.value || [];
+
+                        if (code === '00065' && vals.length) {
+                            const valid = vals.filter(v => v.value !== '-999999');
+                            if (valid.length) {
+                                stage = parseFloat(valid[valid.length - 1].value);
+                                timeSeriesData = valid
+                                    .map(v => ({ time: new Date(v.dateTime), val: parseFloat(v.value) }))
+                                    .filter(v => Number.isFinite(v.val));
+                            }
+                        } else if (code === '00060' && vals.length) {
+                            const valid = vals.filter(v => v.value !== '-999999');
+                            if (valid.length) {
+                                discharge = parseFloat(valid[valid.length - 1].value);
+                            }
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn('USGS Fetch error:', e);
+            }
+
+            if (stage !== null) {
+                updateUI(stage, discharge, timeSeriesData);
+            } else {
+                setSystemStatus('USGS data unavailable', false);
+            }
+
+            await fetchWeatherData();
+        }
+
+        async function fetchWeatherData() {
+            /*
+             * NWS API is free and requires no API key.
+             * GitHub Pages can call api.weather.gov directly from the browser.
+             * We first request the forecast grid for Beatrice, then request
+             * the hourly forecast from the returned URL.
+             */
+            try {
+                const headers = {
+                    'Accept': 'application/geo+json',
+                    'User-Agent': NWS_USER_AGENT
+                };
+
+                const pointsUrl = `https://api.weather.gov/points/${WEATHER_LAT},${WEATHER_LON}`;
+                const pointsResponse = await fetch(pointsUrl, {
+                    headers,
+                    cache: 'no-store'
+                });
+
+                if (!pointsResponse.ok) {
+                    throw new Error(`NWS points HTTP ${pointsResponse.status}`);
+                }
+
+                const points = await pointsResponse.json();
+                const forecastHourlyUrl = points.properties?.forecastHourly;
+
+                if (!forecastHourlyUrl) {
+                    throw new Error('NWS did not return an hourly forecast URL');
+                }
+
+                const forecastResponse = await fetch(forecastHourlyUrl, {
+                    headers,
+                    cache: 'no-store'
+                });
+
+                if (!forecastResponse.ok) {
+                    throw new Error(`NWS forecast HTTP ${forecastResponse.status}`);
+                }
+
+                const forecast = await forecastResponse.json();
+                const periods = forecast.properties?.periods || [];
+
+                if (!periods.length) {
+                    throw new Error('NWS returned no forecast periods');
+                }
+
+                updateWeatherUI(periods[0], periods.slice(0, 12));
+                setSystemStatus('USGS + NWS Active', true);
+            } catch (e) {
+                console.warn('NWS Weather Fetch error:', e);
+                setWeatherUnavailable();
+                setSystemStatus('River Active / Weather Offline', false);
+            }
+        }
+
+        function updateWeatherUI(current, forecastPeriods) {
+            const temp = Number(current.temperature);
+            document.getElementById('weatherTemp').innerText =
+                Number.isFinite(temp) ? Math.round(temp) : '--';
+
+            document.getElementById('weatherCondition').innerText =
+                current.shortForecast || 'Conditions unavailable';
+
+            const wind = current.windSpeed || '--';
+            const direction = current.windDirection || '';
+            const humidity = current.relativeHumidity?.value;
+
+            document.getElementById('weatherDetails').innerText =
+                `Wind: ${wind} ${direction} | Humidity: ${
+                    Number.isFinite(Number(humidity)) ? Math.round(humidity) + '%' : '--'
+                }`;
+
+            const icon = document.getElementById('weatherIcon');
+            const text = (current.shortForecast || '').toLowerCase();
+
+            if (text.includes('thunder')) {
+                icon.className = 'fa-solid fa-cloud-bolt text-amber-400';
+            } else if (text.includes('rain') || text.includes('shower')) {
+                icon.className = 'fa-solid fa-cloud-rain text-blue-400';
+            } else if (text.includes('snow')) {
+                icon.className = 'fa-solid fa-snowflake text-cyan-300';
+            } else if (text.includes('cloud')) {
+                icon.className = 'fa-solid fa-cloud text-slate-400';
+            } else if (text.includes('fog')) {
+                icon.className = 'fa-solid fa-smog text-slate-400';
+            } else {
+                icon.className = 'fa-solid fa-sun text-yellow-400';
+            }
+
+            // Store the next 12 hourly periods for possible future expansion.
+            window.nwsHourlyForecast = forecastPeriods;
+        }
+
+        function setWeatherUnavailable() {
+            document.getElementById('weatherTemp').innerText = '--';
+            document.getElementById('weatherCondition').innerText = 'NWS weather unavailable';
+            document.getElementById('weatherDetails').innerText = 'Check connection or api.weather.gov';
+            document.getElementById('weatherIcon').className = 'fa-solid fa-cloud-exclamation text-slate-500';
+        }
+
+        function setSystemStatus(message, online) {
+            const status = document.getElementById('connectionStatus');
+            const text = document.getElementById('statusText');
+
+            text.innerText = message;
+
+            if (online) {
+                status.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+                status.querySelector('span:first-child').className =
+                    'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+            } else {
+                status.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20';
+                status.querySelector('span:first-child').className =
+                    'w-2 h-2 rounded-full bg-amber-400';
+            }
+        }
+
+        function updateUI(stage, discharge, timeSeries) {
+            document.getElementById('lastUpdatedTime').innerText = new Date().toLocaleTimeString();
+            document.getElementById('currentStageVal').innerText = stage.toFixed(2);
+            document.getElementById('dischargeVal').innerText = discharge ? discharge.toLocaleString() : 'N/A';
+            
+            const margin = 14.0 - stage;
+            document.getElementById('marginToNextText').innerText = margin > 0 
+                ? `Margin: ${margin.toFixed(2)} ft to Action Stage` 
+                : `Action stage exceeded by ${Math.abs(margin).toFixed(2)} ft`;
+
+            updateChart(timeSeries);
+            evaluatePolicies(stage);
+        }
+
+        function evaluatePolicies(stage) {
+            const triggered = policies.filter(p => p.enabled && stage >= p.stage);
+            document.getElementById('activePolicyCount').innerText = triggered.length;
+            const container = document.getElementById('triggeredPoliciesList');
+            container.innerHTML = '';
+            policies.sort((a,b) => a.stage - b.stage).forEach(p => {
+                const active = p.enabled && stage >= p.stage;
+                const sev = SEVERITY_MAP[p.severity];
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-xl border flex justify-between items-center ${active ? sev.bg + ' ' + sev.border : 'bg-slate-800/30 border-slate-800 opacity-50'}`;
+                card.innerHTML = `<div><span class="font-bold text-sm text-white">${p.name}</span> <span class="text-xs text-slate-400">(${p.stage} FT)</span><p class="text-xs text-slate-300">${p.directive}</p></div><span class="text-xs font-mono font-bold ${active ? sev.text : 'text-slate-500'}">${active ? 'TRIGGERED' : 'STANDBY'}</span>`;
+                container.appendChild(card);
+            });
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('hydrographChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: 'Stage (FT)', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { x: { grid: { color: '#1e293b' } }, y: { grid: { color: '#1e293b' } } } }
+            });
+        }
+
+        function updateChart(ts) {
+            if (!chartInstance || !ts.length) return;
+            chartInstance.data.labels = ts.map(d => `${d.time.getMonth()+1}/${d.time.getDate()} ${d.time.getHours()}:${d.time.getMinutes().toString().padStart(2,'0')}`);
+            chartInstance.data.datasets[0].data = ts.map(d => d.val);
+            chartInstance.update();
+        }
+
+        function togglePolicyModal(show) {
+            document.getElementById('policyModal').classList.toggle('hidden', !show);
+            if (show) renderModalList();
+        }
+
+        function renderModalList() {
+            const list = document.getElementById('modalPolicyList');
+            list.innerHTML = '';
+            policies.forEach((p, idx) => {
+                const el = document.createElement('div');
+                el.className = 'flex items-center justify-between p-2 bg-slate-800 rounded text-xs';
+                el.innerHTML = `<span>${p.name} (${p.stage} FT)</span><button onclick="deletePolicy(${idx})" class="text-red-400">Delete</button>`;
+                list.appendChild(el);
+            });
+        }
+
+        function deletePolicy(idx) {
+            policies.splice(idx, 1);
+            savePolicies();
+            renderModalList();
+            evaluatePolicies(parseFloat(document.getElementById('currentStageVal').innerText) || 0);
+        }
+
+        function handleSavePolicy(e) {
+            e.preventDefault();
+            policies.push({
+                id: 'custom_' + Date.now(),
+                name: document.getElementById('policyName').value,
+                stage: parseFloat(document.getElementById('policyStage').value),
+                severity: document.getElementById('policySeverity').value,
+                directive: document.getElementById('policyDirective').value,
+                enabled: true
+            });
+            savePolicies();
+            renderModalList();
+            togglePolicyModal(false);
+            evaluatePolicies(parseFloat(document.getElementById('currentStageVal').innerText) || 0);
+        }
+    </script>
+</body>
+</html>
