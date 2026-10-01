@@ -1,549 +1,2913 @@
-
 <!DOCTYPE html>
+
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Big Blue River Stage Monitor — Beatrice, NE</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        slate: { 850: '#131e32', 950: '#070d19' },
-                        stage: { normal: '#10b981', action: '#f59e0b', minor: '#f97316', moderate: '#ef4444', major: '#8b5cf6' }
+
+```
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<script>
+    tailwind.config = {
+        darkMode: 'class',
+        theme: {
+            extend: {
+                colors: {
+                    slate: {
+                        850: '#131e32',
+                        950: '#070d19'
+                    },
+                    stage: {
+                        normal: '#10b981',
+                        action: '#f59e0b',
+                        minor: '#f97316',
+                        moderate: '#ef4444',
+                        major: '#8b5cf6'
                     }
                 }
             }
         }
-    </script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .font-mono { font-family: 'JetBrains Mono', monospace; }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(51, 65, 85, 0.8); border-radius: 3px; }
-    </style>
+    };
+</script>
+
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+    body {
+        font-family: 'Inter', sans-serif;
+    }
+
+    .font-mono {
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(15, 23, 42, 0.6);
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(51, 65, 85, 0.8);
+        border-radius: 3px;
+    }
+
+    .flood-normal {
+        color: #10b981;
+    }
+
+    .flood-action {
+        color: #f59e0b;
+    }
+
+    .flood-minor {
+        color: #f97316;
+    }
+
+    .flood-moderate {
+        color: #ef4444;
+    }
+
+    .flood-major {
+        color: #8b5cf6;
+    }
+</style>
+```
+
 </head>
+
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col custom-scrollbar antialiased">
-    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-30 px-4 py-3">
-        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
-                <div class="p-2.5 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30">
-                    <i class="fa-solid fa-water text-xl"></i>
-                </div>
-                <div>
-                    <h1 class="font-bold text-lg leading-tight tracking-wide text-white">Big Blue River Monitor</h1>
-                    <p class="text-xs text-slate-400 flex items-center gap-1.5">
-                        <span>Beatrice, Gage County, NE</span>
-                        <span>•</span>
-                        <span class="font-mono text-slate-300">NWS: BEAT1 | USGS: 06881500</span>
-                    </p>
-                </div>
-            </div>
-            <div class="flex items-center gap-3">
-                <div id="connectionStatus" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span id="statusText">System Active</span>
-                </div>
-                <div class="text-xs text-slate-400 font-mono hidden sm:block">
-                    Updated: <span id="lastUpdatedTime" class="text-slate-200">--:--:--</span>
-                </div>
-                <button onclick="fetchRiverData()" class="p-2 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition" title="Refresh Data">
-                    <i id="refreshIcon" class="fa-solid fa-rotate"></i>
-                </button>
-                <button onclick="togglePolicyModal(true)" class="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg border border-blue-400/30 transition shadow-lg shadow-blue-600/20">
-                    <i class="fa-solid fa-sliders"></i>
-                    <span>Configure Policies</span>
-                </button>
-            </div>
-        </div>
-    </header>
 
-    <main class="max-w-7xl mx-auto w-full p-4 md:p-6 flex-1 space-y-6">
-        <div id="activeAlertBanner" class="hidden rounded-xl border p-4 transition-all"></div>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
-                <div class="flex justify-between items-start mb-2">
-                    <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Gage Stage</span>
-                    <span id="stageBadge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Normal</span>
-                </div>
-                <div class="flex items-baseline gap-2">
-                    <span id="currentStageVal" class="text-4xl font-extrabold font-mono text-white">--.--</span>
-                    <span class="text-slate-400 font-medium">FT</span>
-                </div>
-                <p id="stageTrendText" class="text-xs text-slate-400 mt-2 flex items-center gap-1 font-mono">
-                    <i class="fa-solid fa-minus text-slate-500"></i> Fetching telemetry...
-                </p>
-            </div>
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-                <div class="flex justify-between items-start mb-2">
-                    <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Discharge Flow</span>
-                    <i class="fa-solid fa-gauge-high text-slate-500"></i>
-                </div>
-                <div class="flex items-baseline gap-2">
-                    <span id="dischargeVal" class="text-4xl font-extrabold font-mono text-white">---</span>
-                    <span class="text-slate-400 font-medium">CFS</span>
-                </div>
-                <p class="text-xs text-slate-400 mt-2 font-mono">Cubic Feet Per Second</p>
-            </div>
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-                <div class="flex justify-between items-start mb-2">
-                    <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Next Stage Threshold</span>
-                    <i class="fa-solid fa-shield-halved text-slate-500"></i>
-                </div>
-                <div class="flex items-baseline gap-2">
-                    <span id="nextThresholdVal" class="text-3xl font-extrabold font-mono text-amber-400">14.00</span>
-                    <span class="text-slate-400 font-medium">FT</span>
-                </div>
-                <p id="marginToNextText" class="text-xs text-slate-400 mt-2 font-mono">Margin: -- ft to Action Stage</p>
-            </div>
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-                <div class="flex justify-between items-start mb-2">
-                    <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Weather</span>
-                    <i id="weatherIcon" class="fa-solid fa-cloud-sun text-slate-500"></i>
-                </div>
-                <div class="flex items-baseline gap-2">
-                    <span id="weatherTemp" class="text-4xl font-extrabold font-mono text-white">--</span>
-                    <span class="text-slate-400 font-medium">°F</span>
-                </div>
-                <p id="weatherCondition" class="text-xs text-slate-300 mt-2">Fetching NWS conditions...</p>
-                <p id="weatherDetails" class="text-xs text-slate-400 mt-1 font-mono">Wind: -- | Humidity: --</p>
-            </div>
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-                <div class="flex justify-between items-start mb-2">
-                    <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Active Directives</span>
-                    <i class="fa-solid fa-triangle-exclamation text-slate-500"></i>
-                </div>
-                <div class="flex items-baseline gap-2">
-                    <span id="activePolicyCount" class="text-4xl font-extrabold font-mono text-white">0</span>
-                    <span class="text-slate-400 font-medium">Active</span>
-                </div>
-                <p id="policySummaryText" class="text-xs text-slate-400 mt-2">All parameters within normal operating limits.</p>
-            </div>
+<header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-30 px-4 py-3">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+
+```
+    <div class="flex items-center gap-3">
+        <div class="p-2.5 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30">
+            <i class="fa-solid fa-water text-xl"></i>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col">
-                <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
-                    <div>
-                        <h2 class="text-base font-semibold text-white">Water Stage Hydrograph</h2>
-                        <p class="text-xs text-slate-400">Real-time river level timeline & flood stage overlays</p>
-                    </div>
-                </div>
-                <div class="relative flex-1 min-h-[300px] w-full">
-                    <canvas id="hydrographChart"></canvas>
-                </div>
-            </div>
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
-                <div>
-                    <h2 class="text-base font-semibold text-white mb-1">Official Flood Stages</h2>
-                    <p class="text-xs text-slate-400 mb-4">Reference thresholds for Big Blue River at Beatrice</p>
-                    <div class="space-y-3 font-mono text-xs">
-                        <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-purple-500/20">
-                            <span class="font-medium text-slate-200">Major Flood</span>
-                            <span class="font-bold text-purple-400">32.0 FT</span>
-                        </div>
-                        <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-red-500/20">
-                            <span class="font-medium text-slate-200">Moderate Flood</span>
-                            <span class="font-bold text-red-400">26.0 FT</span>
-                        </div>
-                        <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-orange-500/20">
-                            <span class="font-medium text-slate-200">Minor Flood</span>
-                            <span class="font-bold text-orange-400">18.0 FT</span>
-                        </div>
-                        <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-amber-500/20">
-                            <span class="font-medium text-slate-200">Action Stage</span>
-                            <span class="font-bold text-amber-400">16.0 FT</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <div>
+            <h1 class="font-bold text-lg leading-tight tracking-wide text-white">
+                Big Blue River Monitor
+            </h1>
 
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-            <div class="flex items-center justify-between mb-4">
-                <div>
-                    <h2 class="text-base font-semibold text-white">Active Operational Directives</h2>
-                    <p class="text-xs text-slate-400">Automated policies evaluated against current gauge height and Nebraska flood-stage thresholds</p>
-                </div>
-                <button onclick="togglePolicyModal(true)" class="text-xs text-blue-400 hover:text-blue-300 font-medium">+ Add or Edit Rules</button>
-            </div>
-            <div id="triggeredPoliciesList" class="space-y-3"></div>
-        </div>
-    </main>
-
-    <div id="policyModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl p-5">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="font-semibold text-lg text-white">Custom Policy Engine</h3>
-                <button onclick="togglePolicyModal(false)" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <form id="addPolicyForm" onsubmit="handleSavePolicy(event)" class="bg-slate-850 p-4 rounded-xl border border-slate-700/60 space-y-3 mb-4">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <input type="text" id="policyName" required placeholder="Policy Title" class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
-                    <input type="number" step="0.1" id="policyStage" required placeholder="Trigger Height (FT)" class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <select id="policySeverity" class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
-                        <option value="action">Action Stage</option>
-                        <option value="minor">Minor Warning</option>
-                        <option value="moderate">Moderate Threat</option>
-                        <option value="major">Major Emergency</option>
-                    </select>
-                    <input type="text" id="policyDirective" required placeholder="Action Directive / Warning Text" class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
-                </div>
-                <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg">Save Rule</button>
-            </form>
-            <div id="modalPolicyList" class="space-y-2 overflow-y-auto max-h-48"></div>
+            <p class="text-xs text-slate-400 flex items-center gap-1.5">
+                <span>Beatrice, Gage County, NE</span>
+                <span>•</span>
+                <span class="font-mono text-slate-300">
+                    NWS: BEAT1 | GAGE: 06881500
+                </span>
+            </p>
         </div>
     </div>
 
-    <script>
-        const DEFAULT_POLICIES = [
-            { id: 'p1', name: 'NWS Action Stage Advisory', stage: 16.0, severity: 'action', directive: 'River approach monitoring required.', enabled: true },
-            { id: 'p2', name: 'Minor Flood Alert', stage: 18.0, severity: 'minor', directive: 'Water overflows banks into agricultural bottomlands.', enabled: true },
-            { id: 'p3', name: 'Moderate Flood Stage Directive', stage: 26.0, severity: 'moderate', directive: 'Secondary roads near river inundated.', enabled: true },
-            { id: 'p4', name: 'Major Inundation Response', stage: 32.0, severity: 'major', directive: 'Execute emergency protocols for affected zones.', enabled: true }
-        ];
+    <div class="flex items-center gap-3">
 
-        let policies = [];
-        let chartInstance = null;
+        <div id="connectionStatus"
+             class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
 
-        const SEVERITY_MAP = {
-            action: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400', badgeBg: 'bg-amber-500', name: 'Action Stage' },
-            minor: { bg: 'bg-orange-500/10', border: 'border-orange-500/30', text: 'text-orange-400', badgeBg: 'bg-orange-500', name: 'Minor Flood' },
-            moderate: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-400', badgeBg: 'bg-red-500', name: 'Moderate Flood' },
-            major: { bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-400', badgeBg: 'bg-purple-500', name: 'Major Flood' }
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+
+            <span id="statusText">Connecting...</span>
+        </div>
+
+        <div class="text-xs text-slate-400 font-mono hidden sm:block">
+            Updated:
+            <span id="lastUpdatedTime" class="text-slate-200">--:--:--</span>
+        </div>
+
+        <button
+            onclick="fetchRiverData()"
+            class="p-2 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition"
+            title="Refresh Data">
+
+            <i id="refreshIcon" class="fa-solid fa-rotate"></i>
+        </button>
+
+        <button
+            onclick="togglePolicyModal(true)"
+            class="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg border border-blue-400/30 transition shadow-lg shadow-blue-600/20">
+
+            <i class="fa-solid fa-sliders"></i>
+            <span>Configure Policies</span>
+        </button>
+
+    </div>
+</div>
+```
+
+</header>
+
+<main class="max-w-7xl mx-auto w-full p-4 md:p-6 flex-1 space-y-6">
+
+```
+<!-- ACTIVE FLOOD ALERT -->
+<div id="activeAlertBanner"
+     class="hidden rounded-xl border p-4 transition-all">
+</div>
+
+
+<!-- TOP STATUS CARDS -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+
+    <!-- CURRENT STAGE -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
+
+        <div class="flex justify-between items-start mb-2">
+
+            <span class="text-xs font-medium uppercase tracking-wider text-slate-400">
+                Gage Stage
+            </span>
+
+            <span id="stageBadge"
+                  class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                Loading
+            </span>
+
+        </div>
+
+        <div class="flex items-baseline gap-2">
+
+            <span id="currentStageVal"
+                  class="text-4xl font-extrabold font-mono text-white">
+                --.--
+            </span>
+
+            <span class="text-slate-400 font-medium">
+                FT
+            </span>
+
+        </div>
+
+        <p id="stageTrendText"
+           class="text-xs text-slate-400 mt-2 flex items-center gap-1 font-mono">
+
+            <i class="fa-solid fa-minus text-slate-500"></i>
+            Waiting for telemetry...
+
+        </p>
+
+    </div>
+
+
+    <!-- DISCHARGE -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+
+        <div class="flex justify-between items-start mb-2">
+
+            <span class="text-xs font-medium uppercase tracking-wider text-slate-400">
+                Discharge Flow
+            </span>
+
+            <i class="fa-solid fa-gauge-high text-slate-500"></i>
+
+        </div>
+
+        <div class="flex items-baseline gap-2">
+
+            <span id="dischargeVal"
+                  class="text-4xl font-extrabold font-mono text-white">
+                ---
+            </span>
+
+            <span class="text-slate-400 font-medium">
+                CFS
+            </span>
+
+        </div>
+
+        <p class="text-xs text-slate-400 mt-2 font-mono">
+            Cubic Feet Per Second
+        </p>
+
+    </div>
+
+
+    <!-- NEXT THRESHOLD -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+
+        <div class="flex justify-between items-start mb-2">
+
+            <span class="text-xs font-medium uppercase tracking-wider text-slate-400">
+                Next Stage Threshold
+            </span>
+
+            <i class="fa-solid fa-shield-halved text-slate-500"></i>
+
+        </div>
+
+        <div class="flex items-baseline gap-2">
+
+            <span id="nextThresholdVal"
+                  class="text-3xl font-extrabold font-mono text-amber-400">
+                --.--
+            </span>
+
+            <span class="text-slate-400 font-medium">
+                FT
+            </span>
+
+        </div>
+
+        <p id="marginToNextText"
+           class="text-xs text-slate-400 mt-2 font-mono">
+            Waiting for stage data
+        </p>
+
+    </div>
+
+
+    <!-- WEATHER -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+
+        <div class="flex justify-between items-start mb-2">
+
+            <span class="text-xs font-medium uppercase tracking-wider text-slate-400">
+                Weather
+            </span>
+
+            <i id="weatherIcon"
+               class="fa-solid fa-cloud-sun text-slate-500">
+            </i>
+
+        </div>
+
+        <div class="flex items-baseline gap-2">
+
+            <span id="weatherTemp"
+                  class="text-4xl font-extrabold font-mono text-white">
+                --
+            </span>
+
+            <span class="text-slate-400 font-medium">
+                °F
+            </span>
+
+        </div>
+
+        <p id="weatherCondition"
+           class="text-xs text-slate-300 mt-2">
+            Fetching NWS conditions...
+        </p>
+
+        <p id="weatherDetails"
+           class="text-xs text-slate-400 mt-1 font-mono">
+            Wind: -- | Humidity: --
+        </p>
+
+    </div>
+
+
+    <!-- ACTIVE POLICIES -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+
+        <div class="flex justify-between items-start mb-2">
+
+            <span class="text-xs font-medium uppercase tracking-wider text-slate-400">
+                Active Directives
+            </span>
+
+            <i class="fa-solid fa-triangle-exclamation text-slate-500"></i>
+
+        </div>
+
+        <div class="flex items-baseline gap-2">
+
+            <span id="activePolicyCount"
+                  class="text-4xl font-extrabold font-mono text-white">
+                0
+            </span>
+
+            <span class="text-slate-400 font-medium">
+                Active
+            </span>
+
+        </div>
+
+        <p id="policySummaryText"
+           class="text-xs text-slate-400 mt-2">
+            Waiting for river telemetry.
+        </p>
+
+    </div>
+
+</div>
+
+
+<!-- HYDROGRAPH + FLOOD STAGES -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col">
+
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+
+            <div>
+
+                <h2 class="text-base font-semibold text-white">
+                    Water Stage Hydrograph
+                </h2>
+
+                <p class="text-xs text-slate-400">
+                    Real-time river level timeline & flood-stage overlays
+                </p>
+
+            </div>
+
+            <div class="text-xs font-mono text-slate-500">
+                Station 06881500
+            </div>
+
+        </div>
+
+        <div class="relative flex-1 min-h-[350px] w-full">
+            <canvas id="hydrographChart"></canvas>
+        </div>
+
+    </div>
+
+
+    <!-- FLOOD LEVELS -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+
+        <div>
+
+            <h2 class="text-base font-semibold text-white mb-1">
+                Official Flood Stages
+            </h2>
+
+            <p class="text-xs text-slate-400 mb-4">
+                Nebraska DWEE / NWS thresholds for Big Blue River at Beatrice
+            </p>
+
+
+            <div class="space-y-3 font-mono text-xs">
+
+                <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-purple-500/20">
+
+                    <span class="font-medium text-slate-200">
+                        Major Flood
+                    </span>
+
+                    <span id="majorStageDisplay"
+                          class="font-bold text-purple-400">
+                        -- FT
+                    </span>
+
+                </div>
+
+
+                <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-red-500/20">
+
+                    <span class="font-medium text-slate-200">
+                        Moderate Flood
+                    </span>
+
+                    <span id="moderateStageDisplay"
+                          class="font-bold text-red-400">
+                        -- FT
+                    </span>
+
+                </div>
+
+
+                <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-orange-500/20">
+
+                    <span class="font-medium text-slate-200">
+                        Minor Flood
+                    </span>
+
+                    <span id="minorStageDisplay"
+                          class="font-bold text-orange-400">
+                        -- FT
+                    </span>
+
+                </div>
+
+
+                <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-amber-500/20">
+
+                    <span class="font-medium text-slate-200">
+                        Action Stage
+                    </span>
+
+                    <span id="actionStageDisplay"
+                          class="font-bold text-amber-400">
+                        -- FT
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <div class="mt-5 pt-4 border-t border-slate-800">
+
+                <div class="flex justify-between text-xs">
+
+                    <span class="text-slate-500">
+                        Data Source
+                    </span>
+
+                    <span id="riverSource"
+                          class="font-mono text-slate-300">
+                        --
+                    </span>
+
+                </div>
+
+                <div class="flex justify-between text-xs mt-2">
+
+                    <span class="text-slate-500">
+                        Flood Status
+                    </span>
+
+                    <span id="floodStatusDisplay"
+                          class="font-mono text-slate-300">
+                        --
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- OPERATIONAL DIRECTIVES -->
+<div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+
+    <div class="flex items-center justify-between mb-4">
+
+        <div>
+
+            <h2 class="text-base font-semibold text-white">
+                Active Operational Directives
+            </h2>
+
+            <p class="text-xs text-slate-400">
+                Automated policies evaluated against current gauge height
+            </p>
+
+        </div>
+
+        <button
+            onclick="togglePolicyModal(true)"
+            class="text-xs text-blue-400 hover:text-blue-300 font-medium">
+            + Add or Edit Rules
+        </button>
+
+    </div>
+
+    <div id="triggeredPoliciesList"
+         class="space-y-3">
+    </div>
+
+</div>
+```
+
+</main>
+
+<!-- POLICY MODAL -->
+
+<div id="policyModal"
+     class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+
+```
+<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl p-5">
+
+    <div class="flex justify-between items-center mb-4">
+
+        <h3 class="font-semibold text-lg text-white">
+            Custom Policy Engine
+        </h3>
+
+        <button
+            onclick="togglePolicyModal(false)"
+            class="text-slate-400 hover:text-white">
+
+            <i class="fa-solid fa-xmark"></i>
+
+        </button>
+
+    </div>
+
+
+    <form
+        id="addPolicyForm"
+        onsubmit="handleSavePolicy(event)"
+        class="bg-slate-850 p-4 rounded-xl border border-slate-700/60 space-y-3 mb-4">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+            <input
+                type="text"
+                id="policyName"
+                required
+                placeholder="Policy Title"
+                class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
+
+            <input
+                type="number"
+                step="0.1"
+                id="policyStage"
+                required
+                placeholder="Trigger Height (FT)"
+                class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
+
+        </div>
+
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+            <select
+                id="policySeverity"
+                class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
+
+                <option value="action">
+                    Action Stage
+                </option>
+
+                <option value="minor">
+                    Minor Warning
+                </option>
+
+                <option value="moderate">
+                    Moderate Threat
+                </option>
+
+                <option value="major">
+                    Major Emergency
+                </option>
+
+            </select>
+
+
+            <input
+                type="text"
+                id="policyDirective"
+                required
+                placeholder="Action Directive / Warning Text"
+                class="bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-white">
+
+        </div>
+
+
+        <button
+            type="submit"
+            class="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg">
+
+            Save Rule
+
+        </button>
+
+    </form>
+
+
+    <div id="modalPolicyList"
+         class="space-y-2 overflow-y-auto max-h-48">
+    </div>
+
+</div>
+```
+
+</div>
+
+<script>
+
+    /*
+     * ============================================================
+     * BIG BLUE RIVER MONITOR
+     * BEATRICE, NEBRASKA
+     *
+     * PRIMARY:
+     * Nebraska DWEE Streamgages ArcGIS service
+     *
+     * FALLBACK:
+     * USGS Water Data API
+     *
+     * WEATHER:
+     * National Weather Service
+     * ============================================================
+     */
+
+
+    const STATION = '06881500';
+
+    const DWEE_QUERY =
+        'https://dweegis.nebraska.gov/weegis/rest/services/Streamgages/FeatureServer/0/query';
+
+    const USGS_BASE =
+        'https://api.waterdata.usgs.gov/ogcapi/v1/collections';
+
+    const WEATHER_LAT = 40.2681;
+    const WEATHER_LON = -96.7467;
+
+
+    /*
+     * Flood stages are initialized as null.
+     *
+     * DWEE supplies the official thresholds.
+     *
+     * This prevents stale hard-coded flood levels from being
+     * displayed as current official values.
+     */
+
+    let floodLevels = {
+        action: null,
+        minor: null,
+        moderate: null,
+        major: null
+    };
+
+
+    let currentStage = null;
+    let currentDischarge = null;
+    let chartInstance = null;
+
+
+    /*
+     * Default operational policies.
+     *
+     * These will automatically be synchronized with official
+     * flood thresholds once DWEE supplies them.
+     */
+
+    const DEFAULT_POLICIES = [
+        {
+            id: 'p1',
+            name: 'NWS Action Stage Advisory',
+            stage: null,
+            severity: 'action',
+            directive: 'River approach monitoring required.',
+            enabled: true
+        },
+        {
+            id: 'p2',
+            name: 'Minor Flood Alert',
+            stage: null,
+            severity: 'minor',
+            directive: 'Water may overflow banks into agricultural bottomlands.',
+            enabled: true
+        },
+        {
+            id: 'p3',
+            name: 'Moderate Flood Stage Directive',
+            stage: null,
+            severity: 'moderate',
+            directive: 'Secondary roads near river may be inundated.',
+            enabled: true
+        },
+        {
+            id: 'p4',
+            name: 'Major Inundation Response',
+            stage: null,
+            severity: 'major',
+            directive: 'Execute emergency protocols for affected zones.',
+            enabled: true
+        }
+    ];
+
+
+    let policies = [];
+
+
+    const SEVERITY_MAP = {
+
+        action: {
+            bg: 'bg-amber-500/10',
+            border: 'border-amber-500/30',
+            text: 'text-amber-400',
+            badgeBg: 'bg-amber-500',
+            name: 'Action Stage'
+        },
+
+        minor: {
+            bg: 'bg-orange-500/10',
+            border: 'border-orange-500/30',
+            text: 'text-orange-400',
+            badgeBg: 'bg-orange-500',
+            name: 'Minor Flood'
+        },
+
+        moderate: {
+            bg: 'bg-red-500/10',
+            border: 'border-red-500/30',
+            text: 'text-red-400',
+            badgeBg: 'bg-red-500',
+            name: 'Moderate Flood'
+        },
+
+        major: {
+            bg: 'bg-purple-500/10',
+            border: 'border-purple-500/30',
+            text: 'text-purple-400',
+            badgeBg: 'bg-purple-500',
+            name: 'Major Flood'
+        }
+
+    };
+
+
+    /*
+     * STARTUP
+     */
+
+    document.addEventListener('DOMContentLoaded', () => {
+
+        loadPolicies();
+
+        initChart();
+
+        fetchRiverData();
+
+        setInterval(fetchRiverData, 300000);
+
+    });
+
+
+    /*
+     * ============================================================
+     * POLICY STORAGE
+     * ============================================================
+     */
+
+    function loadPolicies() {
+
+        const stored =
+            localStorage.getItem('beatrice_policies');
+
+        if (stored) {
+
+            try {
+
+                policies = JSON.parse(stored);
+
+            } catch (e) {
+
+                policies = structuredClone(DEFAULT_POLICIES);
+
+            }
+
+        } else {
+
+            policies = structuredClone(DEFAULT_POLICIES);
+
+        }
+
+        synchronizePolicyStages();
+
+    }
+
+
+    function savePolicies() {
+
+        localStorage.setItem(
+            'beatrice_policies',
+            JSON.stringify(policies)
+        );
+
+    }
+
+
+    function synchronizePolicyStages() {
+
+        const map = {
+            action: floodLevels.action,
+            minor: floodLevels.minor,
+            moderate: floodLevels.moderate,
+            major: floodLevels.major
         };
 
-        document.addEventListener('DOMContentLoaded', () => {
-            loadPolicies();
-            initChart();
-            fetchRiverData();
-            setInterval(fetchRiverData, 300000);
+        policies.forEach(policy => {
+
+            if (
+                map[policy.severity] != null &&
+                (
+                    policy.id === 'p1' ||
+                    policy.id === 'p2' ||
+                    policy.id === 'p3' ||
+                    policy.id === 'p4'
+                )
+            ) {
+
+                policy.stage = map[policy.severity];
+
+            }
+
         });
 
-        function loadPolicies() {
-            const stored = localStorage.getItem('beatrice_policies');
-            policies = stored ? JSON.parse(stored) : [...DEFAULT_POLICIES];
+        savePolicies();
+
+    }
+
+
+    /*
+     * ============================================================
+     * MAIN RIVER DATA FUNCTION
+     * ============================================================
+     *
+     * DWEE is attempted first because its streamgage service
+     * contains:
+     *
+     * Stage
+     * Discharge
+     * StageTrend
+     * FloodStatus
+     * ActionStage
+     * FloodStage
+     * ModerateStage
+     * MajorStage
+     *
+     * If DWEE fails, USGS is attempted.
+     */
+
+    async function fetchRiverData() {
+
+        setRefreshState(true);
+
+        let dwEEWorked = false;
+
+        try {
+
+            const data = await fetchDWEE();
+
+            if (data && Number.isFinite(data.stage)) {
+
+                dwEEWorked = true;
+
+                applyFloodThresholds(data);
+
+                updateUI(
+                    data.stage,
+                    data.discharge,
+                    data.stageTrend,
+                    data.floodStatus,
+                    data.source
+                );
+
+                updateFloodLevels();
+
+                await fetchUSGSHistory();
+
+                setSystemStatus(
+                    'DWEE Streamgage Active',
+                    true
+                );
+
+            }
+
+        } catch (e) {
+
+            console.warn(
+                'DWEE river feed failed:',
+                e
+            );
+
         }
 
-        function savePolicies() {
-            localStorage.setItem('beatrice_policies', JSON.stringify(policies));
-        }
 
-        const WEATHER_LAT = 40.2681;
-        const WEATHER_LON = -96.7467;
-        const NWS_USER_AGENT = 'BigBlueRiverStageMonitor/1.0 (GitHub Pages weather monitor)';
+        /*
+         * If DWEE didn't work, try USGS for current stage.
+         */
 
-        async function fetchRiverData() {
-            // PRIMARY SOURCE: Nebraska DWEE statewide Streamgages GIS service.
-            // This service is updated about every 15 minutes and combines
-            // current stage/discharge data from the agencies operating the gage.
-            // USGS is retained as a fallback, but USGS currently reports no
-            // continuous data for station 06881500 in its modern system.
-            let stage = null;
-            let discharge = null;
-            let timeSeriesData = [];
-            let thresholds = { action: 16.0, flood: 18.0, moderate: 26.0, major: 32.0 };
-            let sourceName = '';
+        if (!dwEEWorked) {
 
             try {
-                const url = 'https://dweegis.nebraska.gov/weegis/rest/services/Streamgages/FeatureServer/0/query' +
-                    '?where=StationNumber%3D%2706881500%27' +
-                    '&outFields=StationNumber%2CStationName%2CStage%2CStageDateAsString%2CDischarge%2CDischargeDateAsString%2CActionStage%2CFloodStage%2CModerateStage%2CMajorStage%2CFloodStatus%2CStageTrend%2CSource%2CProcessingDateAsString' +
-                    '&returnGeometry=false&f=json';
 
-                const response = await fetch(url, { cache: 'no-store' });
-                if (!response.ok) throw new Error(`Nebraska DWEE HTTP ${response.status}`);
+                const data = await fetchUSGSCurrent();
 
-                const data = await response.json();
-                const attrs = data?.features?.[0]?.attributes;
-                if (!attrs) throw new Error('Nebraska DWEE returned no Beatrice gage record');
+                if (
+                    data &&
+                    Number.isFinite(data.stage)
+                ) {
 
-                const numberOrNull = value => {
-                    const n = Number(value);
-                    return Number.isFinite(n) ? n : null;
-                };
+                    updateUI(
+                        data.stage,
+                        data.discharge,
+                        data.stageTrend,
+                        'Unavailable',
+                        'USGS'
+                    );
 
-                stage = numberOrNull(attrs.Stage);
-                discharge = numberOrNull(attrs.Discharge);
+                    setSystemStatus(
+                        'USGS Active',
+                        true
+                    );
 
-                thresholds.action = numberOrNull(attrs.ActionStage) ?? 16.0;
-                thresholds.flood = numberOrNull(attrs.FloodStage) ?? 18.0;
-                thresholds.moderate = numberOrNull(attrs.ModerateStage) ?? 26.0;
-                thresholds.major = numberOrNull(attrs.MajorStage) ?? 32.0;
-                sourceName = attrs.Source || 'Nebraska DWEE';
+                } else {
 
-                if (stage !== null) {
-                    // The DWEE service exposes current stage and the prior
-                    // 15/30/45/60 minute values, which gives us a useful
-                    // short-term hydrograph without relying on dead USGS IV data.
-                    const points = [
-                        { value: attrs.Stage60, minutes: 60 },
-                        { value: attrs.Stage45, minutes: 45 },
-                        { value: attrs.Stage30, minutes: 30 },
-                        { value: attrs.Stage15, minutes: 15 },
-                        { value: attrs.Stage, minutes: 0 }
-                    ].map(p => ({
-                        time: new Date(Date.now() - p.minutes * 60000),
-                        val: numberOrNull(p.value)
-                    })).filter(p => p.val !== null);
-                    timeSeriesData = points;
+                    throw new Error(
+                        'USGS returned no current stage'
+                    );
+
                 }
 
-                if (stage === null) throw new Error('Nebraska DWEE returned no current stage value');
-
-                updateFloodThresholds(thresholds);
-                updateUI(stage, discharge, timeSeriesData, thresholds);
-                setSystemStatus(`River Data Active • ${sourceName}`, true);
-
-            } catch (dweeError) {
-                console.warn('Nebraska DWEE Fetch error:', dweeError);
-
-                // FALLBACK: current NWS RFC conditions feed. It is useful for
-                // discharge, but this station may have no current stage value.
-                try {
-                    const nwsRfcUrl = 'https://www.weather.gov/mbrfc/latestconditions_bbl';
-                    // Do not scrape HTML here; leave the existing NWS weather
-                    // feed independent and report the river source as offline.
-                    throw new Error('No reliable fallback stage source available');
-                } catch (fallbackError) {
-                    setSystemStatus('River Data Offline', false);
-                }
-            }
-
-            // Weather is independent of the river feed.
-            await fetchWeatherData();
-        }
-
-        function updateFloodThresholds(t) {
-            const thresholdEl = document.getElementById('nextThresholdVal');
-            const marginEl = document.getElementById('marginToNextText');
-            const stage = parseFloat(document.getElementById('currentStageVal').innerText);
-
-            // Keep the reference panel synchronized with the actual gage policy values.
-            const panel = document.querySelector('.lg\\:col-span-1 .space-y-3');
-            if (panel) {
-                const rows = panel.querySelectorAll(':scope > div');
-                if (rows.length >= 4) {
-                    rows[0].querySelector('span:last-child').textContent = `${t.major.toFixed(1)} FT`;
-                    rows[1].querySelector('span:last-child').textContent = `${t.moderate.toFixed(1)} FT`;
-                    rows[2].querySelector('span:last-child').textContent = `${t.flood.toFixed(1)} FT`;
-                    rows[3].querySelector('span:first-child').textContent = 'Action Stage';
-                    rows[3].querySelector('span:last-child').textContent = `${t.action.toFixed(1)} FT`;
-                }
-            }
-
-            if (thresholdEl) thresholdEl.textContent = t.action.toFixed(1);
-            if (Number.isFinite(stage) && marginEl) {
-                const margin = t.action - stage;
-                marginEl.textContent = margin >= 0
-                    ? `Margin: ${margin.toFixed(2)} ft to Action Stage`
-                    : `Action stage exceeded by ${Math.abs(margin).toFixed(2)} ft`;
-            }
-        }
-
-        async function fetchWeatherData() {
-            /*
-             * NWS API for Beatrice, Nebraska.
-             * Do NOT send a browser User-Agent header: browsers prohibit
-             * JavaScript from setting that header. NWS supports browser
-             * requests to api.weather.gov.
-             */
-            try {
-                const pointsUrl = `https://api.weather.gov/points/${WEATHER_LAT},${WEATHER_LON}`;
-                const pointsResponse = await fetch(pointsUrl, {
-                    headers: { 'Accept': 'application/geo+json' },
-                    cache: 'no-store'
-                });
-
-                if (!pointsResponse.ok) {
-                    throw new Error(`NWS points HTTP ${pointsResponse.status}`);
-                }
-
-                const points = await pointsResponse.json();
-                const forecastHourlyUrl = points.properties?.forecastHourly;
-
-                if (!forecastHourlyUrl) {
-                    throw new Error('NWS did not return an hourly forecast URL');
-                }
-
-                const forecastResponse = await fetch(forecastHourlyUrl, {
-                    headers: { 'Accept': 'application/geo+json' },
-                    cache: 'no-store'
-                });
-
-                if (!forecastResponse.ok) {
-                    throw new Error(`NWS forecast HTTP ${forecastResponse.status}`);
-                }
-
-                const forecast = await forecastResponse.json();
-                const periods = forecast.properties?.periods || [];
-
-                if (!periods.length) {
-                    throw new Error('NWS returned no forecast periods');
-                }
-
-                updateWeatherUI(periods[0], periods.slice(0, 12));
             } catch (e) {
-                console.warn('NWS Weather Fetch error:', e);
-                setWeatherUnavailable();
-            }
-        }
 
-        function updateWeatherUI(current, forecastPeriods) {
-            const temp = Number(current.temperature);
-            document.getElementById('weatherTemp').innerText =
-                Number.isFinite(temp) ? Math.round(temp) : '--';
+                console.warn(
+                    'USGS fallback failed:',
+                    e
+                );
 
-            document.getElementById('weatherCondition').innerText =
-                current.shortForecast || 'Conditions unavailable';
+                setSystemStatus(
+                    'River Data Offline',
+                    false
+                );
 
-            const wind = current.windSpeed || '--';
-            const direction = current.windDirection || '';
-            const humidity = current.relativeHumidity?.value;
+                showRiverUnavailable();
 
-            document.getElementById('weatherDetails').innerText =
-                `Wind: ${wind} ${direction} | Humidity: ${
-                    Number.isFinite(Number(humidity)) ? Math.round(humidity) + '%' : '--'
-                }`;
-
-            const icon = document.getElementById('weatherIcon');
-            const text = (current.shortForecast || '').toLowerCase();
-
-            if (text.includes('thunder')) {
-                icon.className = 'fa-solid fa-cloud-bolt text-amber-400';
-            } else if (text.includes('rain') || text.includes('shower')) {
-                icon.className = 'fa-solid fa-cloud-rain text-blue-400';
-            } else if (text.includes('snow')) {
-                icon.className = 'fa-solid fa-snowflake text-cyan-300';
-            } else if (text.includes('cloud')) {
-                icon.className = 'fa-solid fa-cloud text-slate-400';
-            } else if (text.includes('fog')) {
-                icon.className = 'fa-solid fa-smog text-slate-400';
-            } else {
-                icon.className = 'fa-solid fa-sun text-yellow-400';
             }
 
-            // Store the next 12 hourly periods for possible future expansion.
-            window.nwsHourlyForecast = forecastPeriods;
         }
 
-        function setWeatherUnavailable() {
-            document.getElementById('weatherTemp').innerText = '--';
-            document.getElementById('weatherCondition').innerText = 'NWS weather unavailable';
-            document.getElementById('weatherDetails').innerText = 'Check connection or api.weather.gov';
-            document.getElementById('weatherIcon').className = 'fa-solid fa-cloud-exclamation text-slate-500';
-        }
 
-        function setSystemStatus(message, online) {
-            const status = document.getElementById('connectionStatus');
-            const text = document.getElementById('statusText');
+        /*
+         * Weather is independent.
+         */
 
-            text.innerText = message;
+        await fetchWeatherData();
 
-            if (online) {
-                status.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-                status.querySelector('span:first-child').className =
-                    'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
-            } else {
-                status.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20';
-                status.querySelector('span:first-child').className =
-                    'w-2 h-2 rounded-full bg-amber-400';
+        setRefreshState(false);
+
+    }
+
+
+    /*
+     * ============================================================
+     * NEBRASKA DWEE
+     * ============================================================
+     */
+
+    async function fetchDWEE() {
+
+        const url =
+            DWEE_QUERY +
+            '?where=' +
+            encodeURIComponent(
+                `StationNumber='${STATION}'`
+            ) +
+            '&outFields=*' +
+            '&returnGeometry=false' +
+            '&f=json';
+
+        const response = await fetch(
+            url,
+            {
+                cache: 'no-store'
             }
+        );
+
+        if (!response.ok) {
+
+            throw new Error(
+                `DWEE HTTP ${response.status}`
+            );
+
         }
 
-        function updateUI(stage, discharge, timeSeries, thresholds = { action: 16, flood: 18, moderate: 26, major: 32 }) {
-            document.getElementById('lastUpdatedTime').innerText = new Date().toLocaleTimeString();
-            document.getElementById('currentStageVal').innerText = stage.toFixed(2);
-            document.getElementById('dischargeVal').innerText = discharge ? discharge.toLocaleString() : 'N/A';
-            
-            const margin = thresholds.action - stage;
-            document.getElementById('marginToNextText').innerText = margin > 0 
-                ? `Margin: ${margin.toFixed(2)} ft to Action Stage` 
-                : `Action stage exceeded by ${Math.abs(margin).toFixed(2)} ft`;
+        const json =
+            await response.json();
 
-            updateFloodThresholds(thresholds);
-            updateChart(timeSeries);
-            evaluatePolicies(stage);
+        if (
+            !json.features ||
+            !json.features.length
+        ) {
+
+            throw new Error(
+                'DWEE returned no station record'
+            );
+
         }
 
-        function evaluatePolicies(stage) {
-            const triggered = policies.filter(p => p.enabled && stage >= p.stage);
-            document.getElementById('activePolicyCount').innerText = triggered.length;
-            const container = document.getElementById('triggeredPoliciesList');
-            container.innerHTML = '';
-            policies.sort((a,b) => a.stage - b.stage).forEach(p => {
-                const active = p.enabled && stage >= p.stage;
-                const sev = SEVERITY_MAP[p.severity];
-                const card = document.createElement('div');
-                card.className = `p-3 rounded-xl border flex justify-between items-center ${active ? sev.bg + ' ' + sev.border : 'bg-slate-800/30 border-slate-800 opacity-50'}`;
-                card.innerHTML = `<div><span class="font-bold text-sm text-white">${p.name}</span> <span class="text-xs text-slate-400">(${p.stage} FT)</span><p class="text-xs text-slate-300">${p.directive}</p></div><span class="text-xs font-mono font-bold ${active ? sev.text : 'text-slate-500'}">${active ? 'TRIGGERED' : 'STANDBY'}</span>`;
-                container.appendChild(card);
+        const p =
+            json.features[0].attributes || {};
+
+
+        const stage =
+            numberOrNull(p.Stage);
+
+        const discharge =
+            numberOrNull(p.Discharge);
+
+        if (!Number.isFinite(stage)) {
+
+            throw new Error(
+                'DWEE returned no current stage'
+            );
+
+        }
+
+
+        return {
+
+            stage,
+
+            discharge,
+
+            stageTrend:
+                p.StageTrend ||
+                'Unavailable',
+
+            floodStatus:
+                p.FloodStatus ||
+                'Normal',
+
+            actionStage:
+                numberOrNull(p.ActionStage),
+
+            floodStage:
+                numberOrNull(p.FloodStage),
+
+            moderateStage:
+                numberOrNull(p.ModerateStage),
+
+            majorStage:
+                numberOrNull(p.MajorStage),
+
+            stageDate:
+                p.StageDateAsString ||
+                p.StageDate ||
+                null,
+
+            source:
+                'Nebraska DWEE'
+
+        };
+
+    }
+
+
+    /*
+     * ============================================================
+     * APPLY OFFICIAL FLOOD LEVELS
+     * ============================================================
+     */
+
+    function applyFloodThresholds(data) {
+
+        if (Number.isFinite(data.actionStage)) {
+            floodLevels.action =
+                data.actionStage;
+        }
+
+        if (Number.isFinite(data.floodStage)) {
+            floodLevels.minor =
+                data.floodStage;
+        }
+
+        if (Number.isFinite(data.moderateStage)) {
+            floodLevels.moderate =
+                data.moderateStage;
+        }
+
+        if (Number.isFinite(data.majorStage)) {
+            floodLevels.major =
+                data.majorStage;
+        }
+
+        synchronizePolicyStages();
+
+    }
+
+
+    /*
+     * ============================================================
+     * USGS CURRENT FALLBACK
+     * ============================================================
+     */
+
+    async function fetchUSGSCurrent() {
+
+        const site =
+            'USGS-06881500';
+
+        const latestBase =
+            `${USGS_BASE}/latest-continuous/items`;
+
+        const stageURL =
+            latestBase +
+            `?f=json&monitoring_location_id=${site}` +
+            '&parameter_code=00065&limit=10';
+
+        const flowURL =
+            latestBase +
+            `?f=json&monitoring_location_id=${site}` +
+            '&parameter_code=00060&limit=10';
+
+
+        const [
+            stageResponse,
+            flowResponse
+        ] = await Promise.all([
+
+            fetch(
+                stageURL,
+                { cache: 'no-store' }
+            ),
+
+            fetch(
+                flowURL,
+                { cache: 'no-store' }
+            )
+
+        ]);
+
+
+        if (!stageResponse.ok) {
+
+            throw new Error(
+                `USGS stage HTTP ${stageResponse.status}`
+            );
+
+        }
+
+
+        const stageData =
+            await stageResponse.json();
+
+        const flowData =
+            flowResponse.ok
+                ? await flowResponse.json()
+                : null;
+
+
+        const stageFeature =
+            (stageData.features || [])
+                .find(
+                    f =>
+                        f.properties?.parameter_code ===
+                        '00065'
+                );
+
+
+        const flowFeature =
+            (flowData?.features || [])
+                .find(
+                    f =>
+                        f.properties?.parameter_code ===
+                        '00060'
+                );
+
+
+        const stage =
+            numberOrNull(
+                stageFeature?.properties?.value
+            );
+
+
+        const discharge =
+            numberOrNull(
+                flowFeature?.properties?.value
+            );
+
+
+        if (!Number.isFinite(stage)) {
+
+            throw new Error(
+                'USGS current stage unavailable'
+            );
+
+        }
+
+
+        return {
+
+            stage,
+
+            discharge,
+
+            stageTrend:
+                'Unavailable'
+
+        };
+
+    }
+
+
+    /*
+     * ============================================================
+     * USGS HISTORY
+     * ============================================================
+     *
+     * Used for the hydrograph.
+     *
+     * If USGS history is unavailable, the monitor still works.
+     */
+
+    async function fetchUSGSHistory() {
+
+        try {
+
+            const site =
+                'USGS-06881500';
+
+            const historyURL =
+                `${USGS_BASE}/continuous/items` +
+                `?f=json` +
+                `&monitoring_location_id=${site}` +
+                `&parameter_code=00065` +
+                `&time=P3D` +
+                `&limit=50000`;
+
+
+            const response =
+                await fetch(
+                    historyURL,
+                    { cache: 'no-store' }
+                );
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    `USGS history HTTP ${response.status}`
+                );
+
+            }
+
+
+            const data =
+                await response.json();
+
+
+            const features =
+                data.features || [];
+
+
+            const points =
+                features
+                    .map(f => {
+
+                        const time =
+                            new Date(
+                                f.properties?.time
+                            );
+
+                        const val =
+                            Number(
+                                f.properties?.value
+                            );
+
+                        return {
+                            time,
+                            val
+                        };
+
+                    })
+                    .filter(
+                        p =>
+                            Number.isFinite(p.val) &&
+                            !Number.isNaN(
+                                p.time.getTime()
+                            )
+                    )
+                    .sort(
+                        (a, b) =>
+                            a.time - b.time
+                    );
+
+
+            if (points.length) {
+
+                updateChart(points);
+
+            }
+
+        } catch (e) {
+
+            console.warn(
+                'USGS history unavailable:',
+                e
+            );
+
+            /*
+             * Don't break the monitor just because the
+             * historical API is unavailable.
+             */
+
+        }
+
+    }
+
+
+    /*
+     * ============================================================
+     * UPDATE MAIN UI
+     * ============================================================
+     */
+
+    function updateUI(
+        stage,
+        discharge,
+        trend,
+        floodStatus,
+        source
+    ) {
+
+        currentStage =
+            Number(stage);
+
+        currentDischarge =
+            Number.isFinite(Number(discharge))
+                ? Number(discharge)
+                : null;
+
+
+        document.getElementById(
+            'lastUpdatedTime'
+        ).innerText =
+            new Date().toLocaleTimeString();
+
+
+        document.getElementById(
+            'currentStageVal'
+        ).innerText =
+            currentStage.toFixed(2);
+
+
+        document.getElementById(
+            'dischargeVal'
+        ).innerText =
+            Number.isFinite(currentDischarge)
+                ? currentDischarge.toLocaleString(
+                    undefined,
+                    {
+                        maximumFractionDigits: 0
+                    }
+                )
+                : 'N/A';
+
+
+        document.getElementById(
+            'riverSource'
+        ).innerText =
+            source || '--';
+
+
+        document.getElementById(
+            'floodStatusDisplay'
+        ).innerText =
+            floodStatus || 'Unavailable';
+
+
+        updateStageStatus(
+            currentStage,
+            floodStatus
+        );
+
+
+        updateTrend(
+            trend
+        );
+
+
+        updateNextThreshold(
+            currentStage
+        );
+
+
+        evaluatePolicies(
+            currentStage
+        );
+
+    }
+
+
+    /*
+     * ============================================================
+     * FLOOD STATUS
+     * ============================================================
+     */
+
+    function updateStageStatus(
+        stage,
+        reportedStatus
+    ) {
+
+        const badge =
+            document.getElementById(
+                'stageBadge'
+            );
+
+
+        let status =
+            'Normal';
+
+        let css =
+            'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+
+
+        /*
+         * Determine status from official thresholds first.
+         */
+
+        if (
+            floodLevels.major != null &&
+            stage >= floodLevels.major
+        ) {
+
+            status = 'Major Flood';
+
+            css =
+                'bg-purple-500/10 text-purple-400 border-purple-500/20';
+
+        } else if (
+            floodLevels.moderate != null &&
+            stage >= floodLevels.moderate
+        ) {
+
+            status = 'Moderate Flood';
+
+            css =
+                'bg-red-500/10 text-red-400 border-red-500/20';
+
+        } else if (
+            floodLevels.minor != null &&
+            stage >= floodLevels.minor
+        ) {
+
+            status = 'Minor Flood';
+
+            css =
+                'bg-orange-500/10 text-orange-400 border-orange-500/20';
+
+        } else if (
+            floodLevels.action != null &&
+            stage >= floodLevels.action
+        ) {
+
+            status = 'Action Stage';
+
+            css =
+                'bg-amber-500/10 text-amber-400 border-amber-500/20';
+
+        }
+
+
+        /*
+         * If the official source gives a meaningful flood
+         * status, display it when appropriate.
+         */
+
+        if (
+            reportedStatus &&
+            reportedStatus !== 'Normal' &&
+            reportedStatus !== 'Unavailable'
+        ) {
+
+            /*
+             * Keep threshold-derived status authoritative
+             * for the visual badge.
+             */
+
+        }
+
+
+        badge.innerText =
+            status;
+
+        badge.className =
+            `text-xs font-semibold px-2.5 py-0.5 rounded-full border ${css}`;
+
+
+        updateAlertBanner(
+            status,
+            stage
+        );
+
+    }
+
+
+    function updateAlertBanner(
+        status,
+        stage
+    ) {
+
+        const banner =
+            document.getElementById(
+                'activeAlertBanner'
+            );
+
+
+        if (
+            status === 'Normal'
+        ) {
+
+            banner.classList.add(
+                'hidden'
+            );
+
+            banner.innerHTML = '';
+
+            return;
+
+        }
+
+
+        const config = {
+
+            'Action Stage': {
+                border:
+                    'border-amber-500/40',
+                bg:
+                    'bg-amber-500/10',
+                text:
+                    'text-amber-300',
+                icon:
+                    'fa-triangle-exclamation'
+            },
+
+            'Minor Flood': {
+                border:
+                    'border-orange-500/40',
+                bg:
+                    'bg-orange-500/10',
+                text:
+                    'text-orange-300',
+                icon:
+                    'fa-water'
+            },
+
+            'Moderate Flood': {
+                border:
+                    'border-red-500/40',
+                bg:
+                    'bg-red-500/10',
+                text:
+                    'text-red-300',
+                icon:
+                    'fa-house-flood-water'
+            },
+
+            'Major Flood': {
+                border:
+                    'border-purple-500/40',
+                bg:
+                    'bg-purple-500/10',
+                text:
+                    'text-purple-300',
+                icon:
+                    'fa-bolt'
+            }
+
+        }[status];
+
+
+        if (!config) {
+
+            banner.classList.add(
+                'hidden'
+            );
+
+            return;
+
+        }
+
+
+        banner.className =
+            `rounded-xl border p-4 transition-all ${config.border} ${config.bg}`;
+
+
+        banner.innerHTML = `
+
+            <div class="flex items-center gap-3">
+
+                <i class="fa-solid ${config.icon}
+                   ${config.text} text-xl"></i>
+
+                <div>
+
+                    <div class="font-bold ${config.text}">
+                        ${status}
+                    </div>
+
+                    <div class="text-xs text-slate-300 mt-1">
+                        Big Blue River at Beatrice:
+                        ${stage.toFixed(2)} FT
+                    </div>
+
+                </div>
+
+            </div>
+
+        `;
+
+        banner.classList.remove(
+            'hidden'
+        );
+
+    }
+
+
+    /*
+     * ============================================================
+     * TREND
+     * ============================================================
+     */
+
+    function updateTrend(trend) {
+
+        const element =
+            document.getElementById(
+                'stageTrendText'
+            );
+
+
+        const normalized =
+            String(
+                trend || ''
+            ).toLowerCase();
+
+
+        if (
+            normalized.includes('rising')
+        ) {
+
+            element.innerHTML =
+                `<i class="fa-solid fa-arrow-trend-up text-red-400"></i>
+                 Rising`;
+
+        } else if (
+            normalized.includes('falling')
+        ) {
+
+            element.innerHTML =
+                `<i class="fa-solid fa-arrow-trend-down text-emerald-400"></i>
+                 Falling`;
+
+        } else if (
+            normalized.includes('constant')
+        ) {
+
+            element.innerHTML =
+                `<i class="fa-solid fa-minus text-slate-400"></i>
+                 Constant`;
+
+        } else {
+
+            element.innerHTML =
+                `<i class="fa-solid fa-circle-question text-slate-500"></i>
+                 Trend unavailable`;
+
+        }
+
+    }
+
+
+    /*
+     * ============================================================
+     * NEXT FLOOD THRESHOLD
+     * ============================================================
+     */
+
+    function updateNextThreshold(stage) {
+
+        const thresholds = [
+
+            {
+                name: 'Action Stage',
+                value: floodLevels.action
+            },
+
+            {
+                name: 'Minor Flood',
+                value: floodLevels.minor
+            },
+
+            {
+                name: 'Moderate Flood',
+                value: floodLevels.moderate
+            },
+
+            {
+                name: 'Major Flood',
+                value: floodLevels.major
+            }
+
+        ]
+        .filter(
+            x =>
+                Number.isFinite(x.value) &&
+                x.value > stage
+        )
+        .sort(
+            (a, b) =>
+                a.value - b.value
+        );
+
+
+        const display =
+            document.getElementById(
+                'nextThresholdVal'
+            );
+
+        const text =
+            document.getElementById(
+                'marginToNextText'
+            );
+
+
+        if (!thresholds.length) {
+
+            display.innerText =
+                '---';
+
+            text.innerText =
+                'All defined flood thresholds exceeded';
+
+            return;
+
+        }
+
+
+        const next =
+            thresholds[0];
+
+
+        const margin =
+            next.value - stage;
+
+
+        display.innerText =
+            next.value.toFixed(2);
+
+
+        text.innerText =
+            `Margin: ${margin.toFixed(2)} ft to ${next.name}`;
+
+    }
+
+
+    /*
+     * ============================================================
+     * FLOOD LEVEL DISPLAY
+     * ============================================================
+     */
+
+    function updateFloodLevels() {
+
+        setText(
+            'actionStageDisplay',
+            formatFeet(
+                floodLevels.action
+            )
+        );
+
+        setText(
+            'minorStageDisplay',
+            formatFeet(
+                floodLevels.minor
+            )
+        );
+
+        setText(
+            'moderateStageDisplay',
+            formatFeet(
+                floodLevels.moderate
+            )
+        );
+
+        setText(
+            'majorStageDisplay',
+            formatFeet(
+                floodLevels.major
+            )
+        );
+
+    }
+
+
+    /*
+     * ============================================================
+     * POLICY EVALUATION
+     * ============================================================
+     */
+
+    function evaluatePolicies(stage) {
+
+        const triggered =
+            policies.filter(
+                p =>
+                    p.enabled &&
+                    Number.isFinite(
+                        Number(p.stage)
+                    ) &&
+                    stage >= Number(p.stage)
+            );
+
+
+        document.getElementById(
+            'activePolicyCount'
+        ).innerText =
+            triggered.length;
+
+
+        document.getElementById(
+            'policySummaryText'
+        ).innerText =
+            triggered.length
+                ? `${triggered.length} directive${triggered.length === 1 ? '' : 's'} currently active.`
+                : 'All parameters within normal operating limits.';
+
+
+        const container =
+            document.getElementById(
+                'triggeredPoliciesList'
+            );
+
+
+        container.innerHTML = '';
+
+
+        policies
+            .slice()
+            .sort(
+                (a, b) =>
+                    Number(a.stage || 999) -
+                    Number(b.stage || 999)
+            )
+            .forEach(policy => {
+
+                const active =
+                    policy.enabled &&
+                    Number.isFinite(
+                        Number(policy.stage)
+                    ) &&
+                    stage >= Number(policy.stage);
+
+
+                const sev =
+                    SEVERITY_MAP[
+                        policy.severity
+                    ] ||
+                    SEVERITY_MAP.action;
+
+
+                const card =
+                    document.createElement(
+                        'div'
+                    );
+
+
+                card.className =
+                    `p-3 rounded-xl border flex justify-between items-center ${
+                        active
+                            ? sev.bg + ' ' + sev.border
+                            : 'bg-slate-800/30 border-slate-800 opacity-50'
+                    }`;
+
+
+                card.innerHTML = `
+
+                    <div>
+
+                        <span class="font-bold text-sm text-white">
+                            ${escapeHtml(policy.name)}
+                        </span>
+
+                        <span class="text-xs text-slate-400">
+                            (${formatFeet(policy.stage)})
+                        </span>
+
+                        <p class="text-xs text-slate-300">
+                            ${escapeHtml(policy.directive)}
+                        </p>
+
+                    </div>
+
+                    <span class="text-xs font-mono font-bold ${
+                        active
+                            ? sev.text
+                            : 'text-slate-500'
+                    }">
+
+                        ${active ? 'TRIGGERED' : 'STANDBY'}
+
+                    </span>
+
+                `;
+
+
+                container.appendChild(
+                    card
+                );
+
             });
+
+    }
+
+
+    /*
+     * ============================================================
+     * HYDROGRAPH
+     * ============================================================
+     */
+
+    function initChart() {
+
+        const ctx =
+            document
+                .getElementById(
+                    'hydrographChart'
+                )
+                .getContext('2d');
+
+
+        chartInstance =
+            new Chart(
+                ctx,
+                {
+
+                    type: 'line',
+
+                    data: {
+
+                        labels: [],
+
+                        datasets: [
+
+                            {
+
+                                label:
+                                    'Stage (FT)',
+
+                                data: [],
+
+                                borderColor:
+                                    '#3b82f6',
+
+                                backgroundColor:
+                                    'rgba(59, 130, 246, 0.10)',
+
+                                fill: true,
+
+                                tension: 0.25,
+
+                                pointRadius: 0,
+
+                                borderWidth: 2
+
+                            }
+
+                        ]
+
+                    },
+
+                    options: {
+
+                        responsive: true,
+
+                        maintainAspectRatio: false,
+
+                        interaction: {
+                            intersect: false,
+                            mode: 'index'
+                        },
+
+                        plugins: {
+
+                            legend: {
+                                labels: {
+                                    color: '#cbd5e1'
+                                }
+                            },
+
+                            tooltip: {
+
+                                callbacks: {
+
+                                    label:
+                                        function(context) {
+
+                                            return `Stage: ${Number(context.raw).toFixed(2)} FT`;
+
+                                        }
+
+                                }
+
+                            }
+
+                        },
+
+                        scales: {
+
+                            x: {
+
+                                ticks: {
+                                    color: '#94a3b8',
+                                    maxTicksLimit: 10
+                                },
+
+                                grid: {
+                                    color: '#1e293b'
+                                }
+
+                            },
+
+                            y: {
+
+                                beginAtZero: false,
+
+                                ticks: {
+                                    color: '#94a3b8'
+                                },
+
+                                grid: {
+                                    color: '#1e293b'
+                                },
+
+                                title: {
+
+                                    display: true,
+
+                                    text: 'Stage (FT)',
+
+                                    color: '#94a3b8'
+
+                                }
+
+                            }
+
+                        }
+
+                    },
+
+                    plugins: [
+
+                        {
+
+                            id:
+                                'floodThresholds',
+
+                            afterDraw:
+                                function(chart) {
+
+                                    drawFloodThresholds(
+                                        chart
+                                    );
+
+                                }
+
+                        }
+
+                    ]
+
+                }
+            );
+
+    }
+
+
+    function drawFloodThresholds(chart) {
+
+        const y =
+            chart.scales.y;
+
+
+        if (!y) {
+            return;
         }
 
-        function initChart() {
-            const ctx = document.getElementById('hydrographChart').getContext('2d');
-            chartInstance = new Chart(ctx, {
-                type: 'line',
-                data: { labels: [], datasets: [{ label: 'Stage (FT)', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, tension: 0.3 }] },
-                options: { responsive: true, maintainAspectRatio: false, scales: { x: { grid: { color: '#1e293b' } }, y: { grid: { color: '#1e293b' } } } }
-            });
+
+        const ctx =
+            chart.ctx;
+
+
+        const thresholds = [
+
+            {
+                value: floodLevels.action,
+                color: '#f59e0b',
+                label: 'Action'
+            },
+
+            {
+                value: floodLevels.minor,
+                color: '#f97316',
+                label: 'Minor'
+            },
+
+            {
+                value: floodLevels.moderate,
+                color: '#ef4444',
+                label: 'Moderate'
+            },
+
+            {
+                value: floodLevels.major,
+                color: '#8b5cf6',
+                label: 'Major'
+            }
+
+        ];
+
+
+        thresholds.forEach(t => {
+
+            if (
+                !Number.isFinite(t.value) ||
+                t.value < y.min ||
+                t.value > y.max
+            ) {
+                return;
+            }
+
+
+            const pixel =
+                y.getPixelForValue(
+                    t.value
+                );
+
+
+            ctx.save();
+
+
+            ctx.beginPath();
+
+            ctx.moveTo(
+                chart.chartArea.left,
+                pixel
+            );
+
+            ctx.lineTo(
+                chart.chartArea.right,
+                pixel
+            );
+
+
+            ctx.setLineDash(
+                [6, 4]
+            );
+
+            ctx.lineWidth =
+                1.5;
+
+            ctx.strokeStyle =
+                t.color;
+
+            ctx.stroke();
+
+
+            ctx.setLineDash([]);
+
+            ctx.fillStyle =
+                t.color;
+
+            ctx.font =
+                '11px JetBrains Mono, monospace';
+
+            ctx.fillText(
+                `${t.label} ${t.value.toFixed(1)} FT`,
+                chart.chartArea.right - 105,
+                pixel - 5
+            );
+
+
+            ctx.restore();
+
+        });
+
+    }
+
+
+    function updateChart(points) {
+
+        if (
+            !chartInstance ||
+            !points ||
+            !points.length
+        ) {
+            return;
         }
 
-        function updateChart(ts) {
-            if (!chartInstance || !ts.length) return;
-            chartInstance.data.labels = ts.map(d => `${d.time.getMonth()+1}/${d.time.getDate()} ${d.time.getHours()}:${d.time.getMinutes().toString().padStart(2,'0')}`);
-            chartInstance.data.datasets[0].data = ts.map(d => d.val);
-            chartInstance.update();
+
+        chartInstance.data.labels =
+            points.map(
+                d =>
+                    d.time.toLocaleString(
+                        [],
+                        {
+                            month: 'numeric',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit'
+                        }
+                    )
+            );
+
+
+        chartInstance.data.datasets[0].data =
+            points.map(
+                d => d.val
+            );
+
+
+        chartInstance.update(
+            'none'
+        );
+
+    }
+
+
+    /*
+     * ============================================================
+     * WEATHER
+     * ============================================================
+     */
+
+    async function fetchWeatherData() {
+
+        try {
+
+            const pointsURL =
+                `https://api.weather.gov/points/${WEATHER_LAT},${WEATHER_LON}`;
+
+
+            const pointsResponse =
+                await fetch(
+                    pointsURL,
+                    {
+                        headers: {
+                            'Accept':
+                                'application/geo+json'
+                        },
+
+                        cache:
+                            'no-store'
+                    }
+                );
+
+
+            if (!pointsResponse.ok) {
+
+                throw new Error(
+                    `NWS points HTTP ${pointsResponse.status}`
+                );
+
+            }
+
+
+            const points =
+                await pointsResponse.json();
+
+
+            const hourlyURL =
+                points.properties?.forecastHourly;
+
+
+            if (!hourlyURL) {
+
+                throw new Error(
+                    'NWS hourly forecast unavailable'
+                );
+
+            }
+
+
+            const forecastResponse =
+                await fetch(
+                    hourlyURL,
+                    {
+                        headers: {
+                            'Accept':
+                                'application/geo+json'
+                        },
+
+                        cache:
+                            'no-store'
+                    }
+                );
+
+
+            if (!forecastResponse.ok) {
+
+                throw new Error(
+                    `NWS forecast HTTP ${forecastResponse.status}`
+                );
+
+            }
+
+
+            const forecast =
+                await forecastResponse.json();
+
+
+            const periods =
+                forecast.properties?.periods || [];
+
+
+            if (!periods.length) {
+
+                throw new Error(
+                    'NWS returned no forecast periods'
+                );
+
+            }
+
+
+            updateWeatherUI(
+                periods[0]
+            );
+
+        } catch (e) {
+
+            console.warn(
+                'NWS weather failed:',
+                e
+            );
+
+            setWeatherUnavailable();
+
         }
 
-        function togglePolicyModal(show) {
-            document.getElementById('policyModal').classList.toggle('hidden', !show);
-            if (show) renderModalList();
+    }
+
+
+    function updateWeatherUI(
+        current
+    ) {
+
+        const temp =
+            Number(
+                current.temperature
+            );
+
+
+        document.getElementById(
+            'weatherTemp'
+        ).innerText =
+            Number.isFinite(temp)
+                ? Math.round(temp)
+                : '--';
+
+
+        document.getElementById(
+            'weatherCondition'
+        ).innerText =
+            current.shortForecast ||
+            'Conditions unavailable';
+
+
+        const wind =
+            current.windSpeed ||
+            '--';
+
+
+        const direction =
+            current.windDirection ||
+            '';
+
+
+        const humidity =
+            current.relativeHumidity?.value;
+
+
+        document.getElementById(
+            'weatherDetails'
+        ).innerText =
+            `Wind: ${wind} ${direction} | Humidity: ${
+                Number.isFinite(
+                    Number(humidity)
+                )
+                    ? Math.round(humidity) + '%'
+                    : '--'
+            }`;
+
+
+        const icon =
+            document.getElementById(
+                'weatherIcon'
+            );
+
+
+        const text =
+            (
+                current.shortForecast ||
+                ''
+            ).toLowerCase();
+
+
+        if (
+            text.includes('thunder')
+        ) {
+
+            icon.className =
+                'fa-solid fa-cloud-bolt text-amber-400';
+
+        } else if (
+            text.includes('rain') ||
+            text.includes('shower')
+        ) {
+
+            icon.className =
+                'fa-solid fa-cloud-rain text-blue-400';
+
+        } else if (
+            text.includes('snow')
+        ) {
+
+            icon.className =
+                'fa-solid fa-snowflake text-cyan-300';
+
+        } else if (
+            text.includes('cloud')
+        ) {
+
+            icon.className =
+                'fa-solid fa-cloud text-slate-400';
+
+        } else if (
+            text.includes('fog')
+        ) {
+
+            icon.className =
+                'fa-solid fa-smog text-slate-400';
+
+        } else {
+
+            icon.className =
+                'fa-solid fa-sun text-yellow-400';
+
         }
 
-        function renderModalList() {
-            const list = document.getElementById('modalPolicyList');
-            list.innerHTML = '';
-            policies.forEach((p, idx) => {
-                const el = document.createElement('div');
-                el.className = 'flex items-center justify-between p-2 bg-slate-800 rounded text-xs';
-                el.innerHTML = `<span>${p.name} (${p.stage} FT)</span><button onclick="deletePolicy(${idx})" class="text-red-400">Delete</button>`;
-                list.appendChild(el);
-            });
+    }
+
+
+    function setWeatherUnavailable() {
+
+        document.getElementById(
+            'weatherTemp'
+        ).innerText =
+            '--';
+
+
+        document.getElementById(
+            'weatherCondition'
+        ).innerText =
+            'NWS weather unavailable';
+
+
+        document.getElementById(
+            'weatherDetails'
+        ).innerText =
+            'Check api.weather.gov';
+
+
+        document.getElementById(
+            'weatherIcon'
+        ).className =
+            'fa-solid fa-cloud-exclamation text-slate-500';
+
+    }
+
+
+    /*
+     * ============================================================
+     * SYSTEM STATUS
+     * ============================================================
+     */
+
+    function setSystemStatus(
+        message,
+        online
+    ) {
+
+        const status =
+            document.getElementById(
+                'connectionStatus'
+            );
+
+
+        const text =
+            document.getElementById(
+                'statusText'
+            );
+
+
+        text.innerText =
+            message;
+
+
+        if (online) {
+
+            status.className =
+                'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+
+
+            status.querySelector(
+                'span:first-child'
+            ).className =
+                'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+
+        } else {
+
+            status.className =
+                'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20';
+
+
+            status.querySelector(
+                'span:first-child'
+            ).className =
+                'w-2 h-2 rounded-full bg-amber-400';
+
         }
 
-        function deletePolicy(idx) {
-            policies.splice(idx, 1);
-            savePolicies();
+    }
+
+
+    function showRiverUnavailable() {
+
+        document.getElementById(
+            'currentStageVal'
+        ).innerText =
+            '--.--';
+
+
+        document.getElementById(
+            'dischargeVal'
+        ).innerText =
+            '---';
+
+
+        document.getElementById(
+            'stageBadge'
+        ).innerText =
+            'Offline';
+
+
+        document.getElementById(
+            'stageTrendText'
+        ).innerHTML =
+            `<i class="fa-solid fa-circle-exclamation text-amber-400"></i>
+             River telemetry unavailable`;
+
+
+        document.getElementById(
+            'riverSource'
+        ).innerText =
+            'Offline';
+
+
+        document.getElementById(
+            'floodStatusDisplay'
+        ).innerText =
+            'Unavailable';
+
+    }
+
+
+    /*
+     * ============================================================
+     * POLICY MODAL
+     * ============================================================
+     */
+
+    function togglePolicyModal(
+        show
+    ) {
+
+        document
+            .getElementById(
+                'policyModal'
+            )
+            .classList
+            .toggle(
+                'hidden',
+                !show
+            );
+
+
+        if (show) {
+
             renderModalList();
-            evaluatePolicies(parseFloat(document.getElementById('currentStageVal').innerText) || 0);
+
         }
 
-        function handleSavePolicy(e) {
-            e.preventDefault();
-            policies.push({
-                id: 'custom_' + Date.now(),
-                name: document.getElementById('policyName').value,
-                stage: parseFloat(document.getElementById('policyStage').value),
-                severity: document.getElementById('policySeverity').value,
-                directive: document.getElementById('policyDirective').value,
-                enabled: true
-            });
-            savePolicies();
-            renderModalList();
-            togglePolicyModal(false);
-            evaluatePolicies(parseFloat(document.getElementById('currentStageVal').innerText) || 0);
+    }
+
+
+    function renderModalList() {
+
+        const list =
+            document.getElementById(
+                'modalPolicyList'
+            );
+
+
+        list.innerHTML =
+            '';
+
+
+        policies.forEach(
+            (p, idx) => {
+
+                const el =
+                    document.createElement(
+                        'div'
+                    );
+
+
+                el.className =
+                    'flex items-center justify-between p-2 bg-slate-800 rounded text-xs';
+
+
+                el.innerHTML = `
+
+                    <span>
+                        ${escapeHtml(p.name)}
+                        (${formatFeet(p.stage)})
+                    </span>
+
+                    <button
+                        onclick="deletePolicy(${idx})"
+                        class="text-red-400 hover:text-red-300">
+
+                        Delete
+
+                    </button>
+
+                `;
+
+
+                list.appendChild(
+                    el
+                );
+
+            }
+        );
+
+    }
+
+
+    function deletePolicy(
+        idx
+    ) {
+
+        policies.splice(
+            idx,
+            1
+        );
+
+
+        savePolicies();
+
+        renderModalList();
+
+
+        if (
+            Number.isFinite(
+                currentStage
+            )
+        ) {
+
+            evaluatePolicies(
+                currentStage
+            );
+
         }
-    </script>
+
+    }
+
+
+    function handleSavePolicy(
+        e
+    ) {
+
+        e.preventDefault();
+
+
+        policies.push({
+
+            id:
+                'custom_' +
+                Date.now(),
+
+            name:
+                document.getElementById(
+                    'policyName'
+                ).value,
+
+            stage:
+                parseFloat(
+                    document.getElementById(
+                        'policyStage'
+                    ).value
+                ),
+
+            severity:
+                document.getElementById(
+                    'policySeverity'
+                ).value,
+
+            directive:
+                document.getElementById(
+                    'policyDirective'
+                ).value,
+
+            enabled:
+                true
+
+        });
+
+
+        savePolicies();
+
+        renderModalList();
+
+        togglePolicyModal(
+            false
+        );
+
+
+        if (
+            Number.isFinite(
+                currentStage
+            )
+        ) {
+
+            evaluatePolicies(
+                currentStage
+            );
+
+        }
+
+    }
+
+
+    /*
+     * ============================================================
+     * HELPERS
+     * ============================================================
+     */
+
+    function numberOrNull(
+        value
+    ) {
+
+        if (
+            value === null ||
+            value === undefined ||
+            value === ''
+        ) {
+
+            return null;
+
+        }
+
+
+        const n =
+            Number(value);
+
+
+        return Number.isFinite(n)
+            ? n
+            : null;
+
+    }
+
+
+    function formatFeet(
+        value
+    ) {
+
+        return Number.isFinite(
+            Number(value)
+        )
+            ? `${Number(value).toFixed(2)} FT`
+            : '-- FT';
+
+    }
+
+
+    function setText(
+        id,
+        value
+    ) {
+
+        const el =
+            document.getElementById(
+                id
+            );
+
+
+        if (el) {
+
+            el.innerText =
+                value;
+
+        }
+
+    }
+
+
+    function escapeHtml(
+        value
+    ) {
+
+        return String(value ?? '')
+            .replace(
+                /&/g,
+                '&amp;'
+            )
+            .replace(
+                /</g,
+                '&lt;'
+            )
+            .replace(
+                />/g,
+                '&gt;'
+            )
+            .replace(
+                /"/g,
+                '&quot;'
+            )
+            .replace(
+                /'/g,
+                '&#039;'
+            );
+
+    }
+
+
+    function setRefreshState(
+        active
+    ) {
+
+        const icon =
+            document.getElementById(
+                'refreshIcon'
+            );
+
+
+        if (active) {
+
+            icon.classList.add(
+                'fa-spin'
+            );
+
+        } else {
+
+            icon.classList.remove(
+                'fa-spin'
+            );
+
+        }
+
+    }
+
+</script>
+
 </body>
 </html>
