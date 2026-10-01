@@ -6,6 +6,8 @@
     <title>Big Blue River Stage Monitor — Beatrice, NE</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
         tailwind.config = {
@@ -134,23 +136,35 @@
                         <h2 class="text-base font-semibold text-white">Water Stage Hydrograph</h2>
                         <p class="text-xs text-slate-400">Real-time river level timeline & flood stage overlays</p>
                     </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" data-hydro-range="24" class="hydro-range px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">24H</button>
+                        <button type="button" data-hydro-range="72" class="hydro-range px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">3D</button>
+                        <button type="button" data-hydro-range="168" class="hydro-range px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">7D</button>
+                        <button id="hydrographResetZoom" type="button" class="px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition" title="Reset hydrograph view">
+                            <i class="fa-solid fa-arrows-to-circle"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="relative flex-1 min-h-[300px] w-full">
                     <canvas id="hydrographChart"></canvas>
                 </div>
+                <div id="hydrographReadout" class="mt-3 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-800 text-xs font-mono text-slate-400 flex flex-wrap items-center justify-between gap-2">
+                    <span><i class="fa-solid fa-crosshairs mr-1 text-slate-500"></i>Hover or click a point to inspect the river stage</span>
+                    <span id="hydrographSelectedValue" class="text-slate-200">Live stage: --.-- FT</span>
+                </div>
             </div>
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
                 <div>
-                    <h2 class="text-base font-semibold text-white mb-1">Official Flood Stages</h2>
+                    <h2 class="text-base font-semibold text-white mb-1">Official NWS Flood Stages</h2>
                     <p class="text-xs text-slate-400 mb-4">Reference thresholds for Big Blue River at Beatrice</p>
                     <div class="space-y-3 font-mono text-xs">
                         <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-purple-500/20">
                             <span class="font-medium text-slate-200">Major Flood</span>
-                            <span class="font-bold text-purple-400">32.0 FT</span>
+                            <span class="font-bold text-purple-400">30.0 FT</span>
                         </div>
                         <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-red-500/20">
                             <span class="font-medium text-slate-200">Moderate Flood</span>
-                            <span class="font-bold text-red-400">26.0 FT</span>
+                            <span class="font-bold text-red-400">21.0 FT</span>
                         </div>
                         <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-orange-500/20">
                             <span class="font-medium text-slate-200">Minor Flood</span>
@@ -158,7 +172,7 @@
                         </div>
                         <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-amber-500/20">
                             <span class="font-medium text-slate-200">Action Stage</span>
-                            <span class="font-bold text-amber-400">16.0 FT</span>
+                            <span class="font-bold text-amber-400">14.0 FT</span>
                         </div>
                     </div>
                 </div>
@@ -169,7 +183,7 @@
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <h2 class="text-base font-semibold text-white">Active Operational Directives</h2>
-                    <p class="text-xs text-slate-400">Automated policies evaluated against current gauge height and Nebraska flood-stage thresholds</p>
+                    <p class="text-xs text-slate-400">Automated policies evaluated against current gauge height</p>
                 </div>
                 <button onclick="togglePolicyModal(true)" class="text-xs text-blue-400 hover:text-blue-300 font-medium">+ Add or Edit Rules</button>
             </div>
@@ -205,10 +219,10 @@
 
     <script>
         const DEFAULT_POLICIES = [
-            { id: 'p1', name: 'NWS Action Stage Advisory', stage: 16.0, severity: 'action', directive: 'River approach monitoring required.', enabled: true },
+            { id: 'p1', name: 'NWS Action Stage Advisory', stage: 14.0, severity: 'action', directive: 'River approach monitoring required.', enabled: true },
             { id: 'p2', name: 'Minor Flood Alert', stage: 18.0, severity: 'minor', directive: 'Water overflows banks into agricultural bottomlands.', enabled: true },
-            { id: 'p3', name: 'Moderate Flood Stage Directive', stage: 26.0, severity: 'moderate', directive: 'Secondary roads near river inundated.', enabled: true },
-            { id: 'p4', name: 'Major Inundation Response', stage: 32.0, severity: 'major', directive: 'Execute emergency protocols for affected zones.', enabled: true }
+            { id: 'p3', name: 'Moderate Flood Stage Directive', stage: 21.0, severity: 'moderate', directive: 'Secondary roads near river inundated.', enabled: true },
+            { id: 'p4', name: 'Major Inundation Response', stage: 30.0, severity: 'major', directive: 'Execute emergency protocols for affected zones.', enabled: true }
         ];
 
         let policies = [];
@@ -242,111 +256,78 @@
         const NWS_USER_AGENT = 'BigBlueRiverStageMonitor/1.0 (GitHub Pages weather monitor)';
 
         async function fetchRiverData() {
-            // PRIMARY SOURCE: Nebraska DWEE statewide Streamgages GIS service.
-            // This service is updated about every 15 minutes and combines
-            // current stage/discharge data from the agencies operating the gage.
-            // USGS is retained as a fallback, but USGS currently reports no
-            // continuous data for station 06881500 in its modern system.
+            /*
+             * USGS MODERN WATER DATA API
+             * The old waterservices.usgs.gov/nwis/iv endpoint is being
+             * retired and is already returning intermittent 503/403 errors.
+             * The modern API uses api.waterdata.usgs.gov.
+             */
             let stage = null;
             let discharge = null;
             let timeSeriesData = [];
-            let thresholds = { action: 16.0, flood: 18.0, moderate: 26.0, major: 32.0 };
-            let sourceName = '';
+
+            const USGS_BASE = 'https://api.waterdata.usgs.gov/ogcapi/v1/collections';
+            const SITE = 'USGS-06881500';
 
             try {
-                const url = 'https://dweegis.nebraska.gov/weegis/rest/services/Streamgages/FeatureServer/0/query' +
-                    '?where=StationNumber%3D%2706881500%27' +
-                    '&outFields=StationNumber%2CStationName%2CStage%2CStageDateAsString%2CDischarge%2CDischargeDateAsString%2CActionStage%2CFloodStage%2CModerateStage%2CMajorStage%2CFloodStatus%2CStageTrend%2CSource%2CProcessingDateAsString' +
-                    '&returnGeometry=false&f=json';
+                const latestBase = `${USGS_BASE}/latest-continuous/items`;
+                const historyBase = `${USGS_BASE}/continuous/items`;
 
-                const response = await fetch(url, { cache: 'no-store' });
-                if (!response.ok) throw new Error(`Nebraska DWEE HTTP ${response.status}`);
+                const latestStageUrl = `${latestBase}?f=json&monitoring_location_id=${SITE}&parameter_code=00065&limit=10`;
+                const latestFlowUrl = `${latestBase}?f=json&monitoring_location_id=${SITE}&parameter_code=00060&limit=10`;
+                const historyUrl = `${historyBase}?f=json&monitoring_location_id=${SITE}&parameter_code=00065&time=P3D&limit=50000`;
 
-                const data = await response.json();
-                const attrs = data?.features?.[0]?.attributes;
-                if (!attrs) throw new Error('Nebraska DWEE returned no Beatrice gage record');
+                const [stageResponse, flowResponse, historyResponse] = await Promise.all([
+                    fetch(latestStageUrl, { cache: 'no-store' }),
+                    fetch(latestFlowUrl, { cache: 'no-store' }),
+                    fetch(historyUrl, { cache: 'no-store' })
+                ]);
 
-                const numberOrNull = value => {
-                    const n = Number(value);
-                    return Number.isFinite(n) ? n : null;
-                };
+                if (!stageResponse.ok) throw new Error(`USGS stage HTTP ${stageResponse.status}`);
+                if (!flowResponse.ok) throw new Error(`USGS flow HTTP ${flowResponse.status}`);
+                if (!historyResponse.ok) throw new Error(`USGS history HTTP ${historyResponse.status}`);
 
-                stage = numberOrNull(attrs.Stage);
-                discharge = numberOrNull(attrs.Discharge);
+                const stageData = await stageResponse.json();
+                const flowData = await flowResponse.json();
+                const historyData = await historyResponse.json();
 
-                thresholds.action = numberOrNull(attrs.ActionStage) ?? 16.0;
-                thresholds.flood = numberOrNull(attrs.FloodStage) ?? 18.0;
-                thresholds.moderate = numberOrNull(attrs.ModerateStage) ?? 26.0;
-                thresholds.major = numberOrNull(attrs.MajorStage) ?? 32.0;
-                sourceName = attrs.Source || 'Nebraska DWEE';
+                const stageFeatures = stageData.features || [];
+                const flowFeatures = flowData.features || [];
+                const historyFeatures = historyData.features || [];
 
-                if (stage !== null) {
-                    // The DWEE service exposes current stage and the prior
-                    // 15/30/45/60 minute values, which gives us a useful
-                    // short-term hydrograph without relying on dead USGS IV data.
-                    const points = [
-                        { value: attrs.Stage60, minutes: 60 },
-                        { value: attrs.Stage45, minutes: 45 },
-                        { value: attrs.Stage30, minutes: 30 },
-                        { value: attrs.Stage15, minutes: 15 },
-                        { value: attrs.Stage, minutes: 0 }
-                    ].map(p => ({
-                        time: new Date(Date.now() - p.minutes * 60000),
-                        val: numberOrNull(p.value)
-                    })).filter(p => p.val !== null);
-                    timeSeriesData = points;
+                const latestStage = stageFeatures.find(f => f.properties?.parameter_code === '00065');
+                const latestFlow = flowFeatures.find(f => f.properties?.parameter_code === '00060');
+
+                if (latestStage?.properties?.value != null) {
+                    stage = Number(latestStage.properties.value);
                 }
 
-                if (stage === null) throw new Error('Nebraska DWEE returned no current stage value');
-
-                updateFloodThresholds(thresholds);
-                updateUI(stage, discharge, timeSeriesData, thresholds);
-                setSystemStatus(`River Data Active • ${sourceName}`, true);
-
-            } catch (dweeError) {
-                console.warn('Nebraska DWEE Fetch error:', dweeError);
-
-                // FALLBACK: current NWS RFC conditions feed. It is useful for
-                // discharge, but this station may have no current stage value.
-                try {
-                    const nwsRfcUrl = 'https://www.weather.gov/mbrfc/latestconditions_bbl';
-                    // Do not scrape HTML here; leave the existing NWS weather
-                    // feed independent and report the river source as offline.
-                    throw new Error('No reliable fallback stage source available');
-                } catch (fallbackError) {
-                    setSystemStatus('River Data Offline', false);
+                if (latestFlow?.properties?.value != null) {
+                    discharge = Number(latestFlow.properties.value);
                 }
+
+                timeSeriesData = historyFeatures
+                    .map(f => ({
+                        time: new Date(f.properties?.time),
+                        val: Number(f.properties?.value)
+                    }))
+                    .filter(v => Number.isFinite(v.val) && !Number.isNaN(v.time.getTime()))
+                    .sort((a, b) => a.time - b.time);
+
+                if (!Number.isFinite(stage)) {
+                    throw new Error('USGS returned no current gage-height value');
+                }
+
+                updateUI(stage, Number.isFinite(discharge) ? discharge : null, timeSeriesData);
+                setSystemStatus('USGS Active', true);
+            } catch (e) {
+                console.warn('USGS Fetch error:', e);
+                setSystemStatus('USGS Data Offline', false);
             }
 
-            // Weather is independent of the river feed.
+            // Weather is independent of the river feed, so a USGS failure
+            // does not prevent NWS weather from updating.
             await fetchWeatherData();
-        }
-
-        function updateFloodThresholds(t) {
-            const thresholdEl = document.getElementById('nextThresholdVal');
-            const marginEl = document.getElementById('marginToNextText');
-            const stage = parseFloat(document.getElementById('currentStageVal').innerText);
-
-            // Keep the reference panel synchronized with the actual gage policy values.
-            const panel = document.querySelector('.lg\\:col-span-1 .space-y-3');
-            if (panel) {
-                const rows = panel.querySelectorAll(':scope > div');
-                if (rows.length >= 4) {
-                    rows[0].querySelector('span:last-child').textContent = `${t.major.toFixed(1)} FT`;
-                    rows[1].querySelector('span:last-child').textContent = `${t.moderate.toFixed(1)} FT`;
-                    rows[2].querySelector('span:last-child').textContent = `${t.flood.toFixed(1)} FT`;
-                    rows[3].querySelector('span:first-child').textContent = 'Action Stage';
-                    rows[3].querySelector('span:last-child').textContent = `${t.action.toFixed(1)} FT`;
-                }
-            }
-
-            if (thresholdEl) thresholdEl.textContent = t.action.toFixed(1);
-            if (Number.isFinite(stage) && marginEl) {
-                const margin = t.action - stage;
-                marginEl.textContent = margin >= 0
-                    ? `Margin: ${margin.toFixed(2)} ft to Action Stage`
-                    : `Action stage exceeded by ${Math.abs(margin).toFixed(2)} ft`;
-            }
         }
 
         async function fetchWeatherData() {
@@ -459,17 +440,16 @@
             }
         }
 
-        function updateUI(stage, discharge, timeSeries, thresholds = { action: 16, flood: 18, moderate: 26, major: 32 }) {
+        function updateUI(stage, discharge, timeSeries) {
             document.getElementById('lastUpdatedTime').innerText = new Date().toLocaleTimeString();
             document.getElementById('currentStageVal').innerText = stage.toFixed(2);
             document.getElementById('dischargeVal').innerText = discharge ? discharge.toLocaleString() : 'N/A';
             
-            const margin = thresholds.action - stage;
+            const margin = 14.0 - stage;
             document.getElementById('marginToNextText').innerText = margin > 0 
                 ? `Margin: ${margin.toFixed(2)} ft to Action Stage` 
                 : `Action stage exceeded by ${Math.abs(margin).toFixed(2)} ft`;
 
-            updateFloodThresholds(thresholds);
             updateChart(timeSeries);
             evaluatePolicies(stage);
         }
@@ -491,18 +471,275 @@
 
         function initChart() {
             const ctx = document.getElementById('hydrographChart').getContext('2d');
+
             chartInstance = new Chart(ctx, {
                 type: 'line',
-                data: { labels: [], datasets: [{ label: 'Stage (FT)', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, tension: 0.3 }] },
-                options: { responsive: true, maintainAspectRatio: false, scales: { x: { grid: { color: '#1e293b' } }, y: { grid: { color: '#1e293b' } } } }
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Stage',
+                        data: [],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.10)',
+                        fill: true,
+                        tension: 0.25,
+                        borderWidth: 2,
+                        pointRadius: 1.5,
+                        pointHoverRadius: 6,
+                        pointHitRadius: 12,
+                        pointBackgroundColor: '#3b82f6'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 350 },
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    onHover: (event, active) => {
+                        const canvas = event.native?.target || event.chart.canvas;
+                        canvas.style.cursor = active.length ? 'crosshair' : 'default';
+                    },
+                    onClick: (event, active) => {
+                        if (!active.length) return;
+                        const index = active[0].index;
+                        const point = window.hydrographSeries?.[index];
+                        if (!point) return;
+                        showHydrographSelection(point, true);
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            enabled: true,
+                            displayColors: false,
+                            backgroundColor: 'rgba(2, 6, 23, 0.96)',
+                            borderColor: '#334155',
+                            borderWidth: 1,
+                            padding: 10,
+                            callbacks: {
+                                title: (items) => {
+                                    if (!items.length) return '';
+                                    const p = window.hydrographSeries?.[items[0].dataIndex];
+                                    return p ? p.time.toLocaleString() : items[0].label;
+                                },
+                                label: (context) => `Stage  ${Number(context.parsed.y).toFixed(2)} FT`
+                            }
+                        },
+                        annotation: {
+                            annotations: {
+                                action: {
+                                    type: 'line',
+                                    yMin: 14,
+                                    yMax: 14,
+                                    borderColor: '#f59e0b',
+                                    borderWidth: 1.5,
+                                    borderDash: [6, 5],
+                                    label: {
+                                        display: true,
+                                        content: 'ACTION 14 FT',
+                                        position: 'start',
+                                        backgroundColor: 'rgba(245,158,11,.85)',
+                                        color: '#0f172a',
+                                        font: { size: 10, weight: 'bold' }
+                                    }
+                                },
+                                minor: {
+                                    type: 'line',
+                                    yMin: 18,
+                                    yMax: 18,
+                                    borderColor: '#f97316',
+                                    borderWidth: 1.5,
+                                    borderDash: [6, 5],
+                                    label: {
+                                        display: true,
+                                        content: 'MINOR 18 FT',
+                                        position: 'start',
+                                        backgroundColor: 'rgba(249,115,22,.85)',
+                                        color: '#0f172a',
+                                        font: { size: 10, weight: 'bold' }
+                                    }
+                                },
+                                moderate: {
+                                    type: 'line',
+                                    yMin: 21,
+                                    yMax: 21,
+                                    borderColor: '#ef4444',
+                                    borderWidth: 1.5,
+                                    borderDash: [6, 5],
+                                    label: {
+                                        display: true,
+                                        content: 'MODERATE 21 FT',
+                                        position: 'start',
+                                        backgroundColor: 'rgba(239,68,68,.85)',
+                                        color: '#fff',
+                                        font: { size: 10, weight: 'bold' }
+                                    }
+                                },
+                                major: {
+                                    type: 'line',
+                                    yMin: 30,
+                                    yMax: 30,
+                                    borderColor: '#8b5cf6',
+                                    borderWidth: 1.5,
+                                    borderDash: [6, 5],
+                                    label: {
+                                        display: true,
+                                        content: 'MAJOR 30 FT',
+                                        position: 'start',
+                                        backgroundColor: 'rgba(139,92,246,.85)',
+                                        color: '#fff',
+                                        font: { size: 10, weight: 'bold' }
+                                    }
+                                },
+                                selectedTime: {
+                                    type: 'line',
+                                    xMin: 0,
+                                    xMax: 0,
+                                    borderColor: 'rgba(226,232,240,.7)',
+                                    borderWidth: 1,
+                                    borderDash: [3, 3],
+                                    display: false,
+                                    label: {
+                                        display: false
+                                    }
+                                },
+                                liveStage: {
+                                    type: 'line',
+                                    yMin: 0,
+                                    yMax: 0,
+                                    borderColor: 'rgba(59,130,246,.75)',
+                                    borderWidth: 1,
+                                    borderDash: [2, 4],
+                                    display: false,
+                                    label: {
+                                        display: false
+                                    }
+                                }
+                            }
+                        },
+                        zoom: {
+                            pan: {
+                                enabled: true,
+                                mode: 'x',
+                                modifierKey: 'shift'
+                            },
+                            zoom: {
+                                wheel: { enabled: true },
+                                pinch: { enabled: true },
+                                drag: {
+                                    enabled: true,
+                                    backgroundColor: 'rgba(59,130,246,.10)',
+                                    borderColor: 'rgba(59,130,246,.65)',
+                                    borderWidth: 1
+                                },
+                                mode: 'x'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: '#1e293b' },
+                            ticks: {
+                                color: '#94a3b8',
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 10
+                            }
+                        },
+                        y: {
+                            grid: { color: '#1e293b' },
+                            ticks: { color: '#94a3b8' },
+                            title: {
+                                display: true,
+                                text: 'Stage (FT)',
+                                color: '#64748b'
+                            }
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('hydrographResetZoom').addEventListener('click', () => {
+                if (chartInstance) chartInstance.resetZoom();
+                if (window.hydrographSeries?.length) {
+                    showHydrographSelection(window.hydrographSeries[window.hydrographSeries.length - 1], false);
+                }
+            });
+
+            document.querySelectorAll('.hydro-range').forEach(button => {
+                button.addEventListener('click', () => {
+                    const hours = Number(button.dataset.hydroRange);
+                    setHydrographRange(hours);
+                });
+            });
+        }
+
+        function showHydrographSelection(point, persistent) {
+            const readout = document.getElementById('hydrographSelectedValue');
+            const selectedTime = chartInstance?.options?.plugins?.annotation?.annotations?.selectedTime;
+            if (!readout || !chartInstance || !point) return;
+
+            readout.innerText = `${persistent ? 'Selected' : 'Live stage'}: ${point.val.toFixed(2)} FT  |  ${point.time.toLocaleString()}`;
+
+            if (selectedTime) {
+                selectedTime.xMin = point.time;
+                selectedTime.xMax = point.time;
+                selectedTime.display = persistent;
+            }
+
+            chartInstance.update('none');
+        }
+
+        function setHydrographRange(hours) {
+            if (!chartInstance || !window.hydrographSeries?.length) return;
+
+            const series = window.hydrographSeries;
+            const newest = series[series.length - 1].time.getTime();
+            const cutoff = newest - hours * 60 * 60 * 1000;
+
+            chartInstance.options.scales.x.min = new Date(cutoff);
+            chartInstance.options.scales.x.max = new Date(newest);
+            chartInstance.update();
+
+            document.querySelectorAll('.hydro-range').forEach(button => {
+                const active = Number(button.dataset.hydroRange) === hours;
+                button.classList.toggle('bg-blue-600', active);
+                button.classList.toggle('border-blue-500', active);
+                button.classList.toggle('text-white', active);
             });
         }
 
         function updateChart(ts) {
             if (!chartInstance || !ts.length) return;
-            chartInstance.data.labels = ts.map(d => `${d.time.getMonth()+1}/${d.time.getDate()} ${d.time.getHours()}:${d.time.getMinutes().toString().padStart(2,'0')}`);
-            chartInstance.data.datasets[0].data = ts.map(d => d.val);
+
+            window.hydrographSeries = ts;
+
+            chartInstance.data.labels = ts.map(d => d.time);
+            chartInstance.data.datasets[0].data = ts.map(d => ({ x: d.time, y: d.val }));
+
+            const newest = ts[ts.length - 1];
+            const liveStage = chartInstance.options.plugins.annotation.annotations.liveStage;
+            if (liveStage) {
+                liveStage.yMin = newest.val;
+                liveStage.yMax = newest.val;
+                liveStage.display = true;
+                liveStage.label.display = true;
+                liveStage.label.content = `LIVE ${newest.val.toFixed(2)} FT`;
+                liveStage.label.position = 'end';
+                liveStage.label.backgroundColor = '#3b82f6';
+                liveStage.label.color = '#fff';
+                liveStage.label.font = { size: 10, weight: 'bold' };
+            }
+
+            chartInstance.options.scales.x.min = undefined;
+            chartInstance.options.scales.x.max = undefined;
             chartInstance.update();
+
+            showHydrographSelection(newest, false);
         }
 
         function togglePolicyModal(show) {
