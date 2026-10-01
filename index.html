@@ -6,8 +6,6 @@
     <title>Big Blue River Stage Monitor — Beatrice, NE</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
         tailwind.config = {
@@ -136,21 +134,9 @@
                         <h2 class="text-base font-semibold text-white">Water Stage Hydrograph</h2>
                         <p class="text-xs text-slate-400">Real-time river level timeline & flood stage overlays</p>
                     </div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <button type="button" data-hydro-range="24" class="hydro-range px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">24H</button>
-                        <button type="button" data-hydro-range="72" class="hydro-range px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">3D</button>
-                        <button type="button" data-hydro-range="168" class="hydro-range px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition">7D</button>
-                        <button id="hydrographResetZoom" type="button" class="px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition" title="Reset hydrograph view">
-                            <i class="fa-solid fa-arrows-to-circle"></i>
-                        </button>
-                    </div>
                 </div>
                 <div class="relative flex-1 min-h-[300px] w-full">
                     <canvas id="hydrographChart"></canvas>
-                </div>
-                <div id="hydrographReadout" class="mt-3 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-800 text-xs font-mono text-slate-400 flex flex-wrap items-center justify-between gap-2">
-                    <span><i class="fa-solid fa-crosshairs mr-1 text-slate-500"></i>Hover or click a point to inspect the river stage</span>
-                    <span id="hydrographSelectedValue" class="text-slate-200">Live stage: --.-- FT</span>
                 </div>
             </div>
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
@@ -471,275 +457,18 @@
 
         function initChart() {
             const ctx = document.getElementById('hydrographChart').getContext('2d');
-
             chartInstance = new Chart(ctx, {
                 type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Stage',
-                        data: [],
-                        borderColor: '#3b82f6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.10)',
-                        fill: true,
-                        tension: 0.25,
-                        borderWidth: 2,
-                        pointRadius: 1.5,
-                        pointHoverRadius: 6,
-                        pointHitRadius: 12,
-                        pointBackgroundColor: '#3b82f6'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: { duration: 350 },
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
-                    },
-                    onHover: (event, active) => {
-                        const canvas = event.native?.target || event.chart.canvas;
-                        canvas.style.cursor = active.length ? 'crosshair' : 'default';
-                    },
-                    onClick: (event, active) => {
-                        if (!active.length) return;
-                        const index = active[0].index;
-                        const point = window.hydrographSeries?.[index];
-                        if (!point) return;
-                        showHydrographSelection(point, true);
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            enabled: true,
-                            displayColors: false,
-                            backgroundColor: 'rgba(2, 6, 23, 0.96)',
-                            borderColor: '#334155',
-                            borderWidth: 1,
-                            padding: 10,
-                            callbacks: {
-                                title: (items) => {
-                                    if (!items.length) return '';
-                                    const p = window.hydrographSeries?.[items[0].dataIndex];
-                                    return p ? p.time.toLocaleString() : items[0].label;
-                                },
-                                label: (context) => `Stage  ${Number(context.parsed.y).toFixed(2)} FT`
-                            }
-                        },
-                        annotation: {
-                            annotations: {
-                                action: {
-                                    type: 'line',
-                                    yMin: 14,
-                                    yMax: 14,
-                                    borderColor: '#f59e0b',
-                                    borderWidth: 1.5,
-                                    borderDash: [6, 5],
-                                    label: {
-                                        display: true,
-                                        content: 'ACTION 14 FT',
-                                        position: 'start',
-                                        backgroundColor: 'rgba(245,158,11,.85)',
-                                        color: '#0f172a',
-                                        font: { size: 10, weight: 'bold' }
-                                    }
-                                },
-                                minor: {
-                                    type: 'line',
-                                    yMin: 18,
-                                    yMax: 18,
-                                    borderColor: '#f97316',
-                                    borderWidth: 1.5,
-                                    borderDash: [6, 5],
-                                    label: {
-                                        display: true,
-                                        content: 'MINOR 18 FT',
-                                        position: 'start',
-                                        backgroundColor: 'rgba(249,115,22,.85)',
-                                        color: '#0f172a',
-                                        font: { size: 10, weight: 'bold' }
-                                    }
-                                },
-                                moderate: {
-                                    type: 'line',
-                                    yMin: 21,
-                                    yMax: 21,
-                                    borderColor: '#ef4444',
-                                    borderWidth: 1.5,
-                                    borderDash: [6, 5],
-                                    label: {
-                                        display: true,
-                                        content: 'MODERATE 21 FT',
-                                        position: 'start',
-                                        backgroundColor: 'rgba(239,68,68,.85)',
-                                        color: '#fff',
-                                        font: { size: 10, weight: 'bold' }
-                                    }
-                                },
-                                major: {
-                                    type: 'line',
-                                    yMin: 30,
-                                    yMax: 30,
-                                    borderColor: '#8b5cf6',
-                                    borderWidth: 1.5,
-                                    borderDash: [6, 5],
-                                    label: {
-                                        display: true,
-                                        content: 'MAJOR 30 FT',
-                                        position: 'start',
-                                        backgroundColor: 'rgba(139,92,246,.85)',
-                                        color: '#fff',
-                                        font: { size: 10, weight: 'bold' }
-                                    }
-                                },
-                                selectedTime: {
-                                    type: 'line',
-                                    xMin: 0,
-                                    xMax: 0,
-                                    borderColor: 'rgba(226,232,240,.7)',
-                                    borderWidth: 1,
-                                    borderDash: [3, 3],
-                                    display: false,
-                                    label: {
-                                        display: false
-                                    }
-                                },
-                                liveStage: {
-                                    type: 'line',
-                                    yMin: 0,
-                                    yMax: 0,
-                                    borderColor: 'rgba(59,130,246,.75)',
-                                    borderWidth: 1,
-                                    borderDash: [2, 4],
-                                    display: false,
-                                    label: {
-                                        display: false
-                                    }
-                                }
-                            }
-                        },
-                        zoom: {
-                            pan: {
-                                enabled: true,
-                                mode: 'x',
-                                modifierKey: 'shift'
-                            },
-                            zoom: {
-                                wheel: { enabled: true },
-                                pinch: { enabled: true },
-                                drag: {
-                                    enabled: true,
-                                    backgroundColor: 'rgba(59,130,246,.10)',
-                                    borderColor: 'rgba(59,130,246,.65)',
-                                    borderWidth: 1
-                                },
-                                mode: 'x'
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: { color: '#1e293b' },
-                            ticks: {
-                                color: '#94a3b8',
-                                maxRotation: 0,
-                                autoSkip: true,
-                                maxTicksLimit: 10
-                            }
-                        },
-                        y: {
-                            grid: { color: '#1e293b' },
-                            ticks: { color: '#94a3b8' },
-                            title: {
-                                display: true,
-                                text: 'Stage (FT)',
-                                color: '#64748b'
-                            }
-                        }
-                    }
-                }
-            });
-
-            document.getElementById('hydrographResetZoom').addEventListener('click', () => {
-                if (chartInstance) chartInstance.resetZoom();
-                if (window.hydrographSeries?.length) {
-                    showHydrographSelection(window.hydrographSeries[window.hydrographSeries.length - 1], false);
-                }
-            });
-
-            document.querySelectorAll('.hydro-range').forEach(button => {
-                button.addEventListener('click', () => {
-                    const hours = Number(button.dataset.hydroRange);
-                    setHydrographRange(hours);
-                });
-            });
-        }
-
-        function showHydrographSelection(point, persistent) {
-            const readout = document.getElementById('hydrographSelectedValue');
-            const selectedTime = chartInstance?.options?.plugins?.annotation?.annotations?.selectedTime;
-            if (!readout || !chartInstance || !point) return;
-
-            readout.innerText = `${persistent ? 'Selected' : 'Live stage'}: ${point.val.toFixed(2)} FT  |  ${point.time.toLocaleString()}`;
-
-            if (selectedTime) {
-                selectedTime.xMin = point.time;
-                selectedTime.xMax = point.time;
-                selectedTime.display = persistent;
-            }
-
-            chartInstance.update('none');
-        }
-
-        function setHydrographRange(hours) {
-            if (!chartInstance || !window.hydrographSeries?.length) return;
-
-            const series = window.hydrographSeries;
-            const newest = series[series.length - 1].time.getTime();
-            const cutoff = newest - hours * 60 * 60 * 1000;
-
-            chartInstance.options.scales.x.min = new Date(cutoff);
-            chartInstance.options.scales.x.max = new Date(newest);
-            chartInstance.update();
-
-            document.querySelectorAll('.hydro-range').forEach(button => {
-                const active = Number(button.dataset.hydroRange) === hours;
-                button.classList.toggle('bg-blue-600', active);
-                button.classList.toggle('border-blue-500', active);
-                button.classList.toggle('text-white', active);
+                data: { labels: [], datasets: [{ label: 'Stage (FT)', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', fill: true, tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { x: { grid: { color: '#1e293b' } }, y: { grid: { color: '#1e293b' } } } }
             });
         }
 
         function updateChart(ts) {
             if (!chartInstance || !ts.length) return;
-
-            window.hydrographSeries = ts;
-
-            chartInstance.data.labels = ts.map(d => d.time);
-            chartInstance.data.datasets[0].data = ts.map(d => ({ x: d.time, y: d.val }));
-
-            const newest = ts[ts.length - 1];
-            const liveStage = chartInstance.options.plugins.annotation.annotations.liveStage;
-            if (liveStage) {
-                liveStage.yMin = newest.val;
-                liveStage.yMax = newest.val;
-                liveStage.display = true;
-                liveStage.label.display = true;
-                liveStage.label.content = `LIVE ${newest.val.toFixed(2)} FT`;
-                liveStage.label.position = 'end';
-                liveStage.label.backgroundColor = '#3b82f6';
-                liveStage.label.color = '#fff';
-                liveStage.label.font = { size: 10, weight: 'bold' };
-            }
-
-            chartInstance.options.scales.x.min = undefined;
-            chartInstance.options.scales.x.max = undefined;
+            chartInstance.data.labels = ts.map(d => `${d.time.getMonth()+1}/${d.time.getDate()} ${d.time.getHours()}:${d.time.getMinutes().toString().padStart(2,'0')}`);
+            chartInstance.data.datasets[0].data = ts.map(d => d.val);
             chartInstance.update();
-
-            showHydrographSelection(newest, false);
         }
 
         function togglePolicyModal(show) {
